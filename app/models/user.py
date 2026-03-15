@@ -1,10 +1,11 @@
+"""
+app/models/user.py
+SQLAlchemy model for registered users.
+Supports both local (email/password) and OAuth (Google/GitHub) accounts.
+"""
 import uuid
-from sqlalchemy import (
-    Column,
-    String,
-    Boolean,
-    DateTime,
-)
+
+from sqlalchemy import Boolean, Column, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -30,31 +31,32 @@ class User(Base):
 
     hashed_password = Column(
         String(255),
-        nullable=True,   # NULL for OAuth users
+        nullable=True,      # NULL for OAuth-only users
     )
 
     provider = Column(
         String(50),
         nullable=False,
-        default="local",  # local | google | github
+        default="local",    # "local" | "google" | "github"
     )
 
     provider_id = Column(
         String(255),
-        nullable=True,   # Google/GitHub user ID
+        nullable=True,      # External provider's user ID
     )
 
-    is_active = Column(
-        Boolean,
-        default=True,
-    )
+    is_active = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
+        nullable=False,
     )
 
     updated_at = Column(
         DateTime(timezone=True),
         onupdate=func.now(),
     )
+
+    def __repr__(self) -> str:
+        return f"<User {self.id} {self.email}>"

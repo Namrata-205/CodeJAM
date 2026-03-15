@@ -1,23 +1,41 @@
-# app/schemas/user.py
-from pydantic import BaseModel, EmailStr, constr
+"""
+app/schemas/user.py
+Pydantic models for user creation and API responses.
+"""
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from datetime import datetime
 
-MAX_BCRYPT_LENGTH = 72  # bcrypt limit
+from pydantic import BaseModel, EmailStr, field_validator
 
-# Schema for creating a new user
+# bcrypt silently truncates passwords longer than 72 bytes.
+# We enforce this limit at the schema layer so the caller gets a clear error.
+MAX_BCRYPT_LENGTH = 72
+
+
 class UserCreate(BaseModel):
     email: EmailStr
-    password: constr(min_length=6, max_length=MAX_BCRYPT_LENGTH)
+    password: str
 
-# Schema for returning user info
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 6:
+            raise ValueError("Password must be at least 6 characters")
+        if len(v.encode("utf-8")) > MAX_BCRYPT_LENGTH:
+            raise ValueError(
+                f"Password must be at most {MAX_BCRYPT_LENGTH} bytes "
+                "(bcrypt limit — use a shorter passphrase)"
+            )
+        return v
+
+
 class UserResponse(BaseModel):
     id: UUID
     email: EmailStr
-    is_active: Optional[bool] = True
+    is_active: bool
+    provider: str
     created_at: datetime
-    updated_at: Optional[datetime]
+    updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}

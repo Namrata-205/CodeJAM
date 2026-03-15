@@ -1,36 +1,70 @@
-# app/api/users.py
+"""
+app/api/users.py
+User registration and profile endpoints.
+"""
 from fastapi import APIRouter, Depends, HTTPException, status
+from passlib.hash import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+
+from app.api.dependencies import get_current_user
 from app.db import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserResponse, MAX_BCRYPT_LENGTH
-from passlib.hash import bcrypt
+from app.schemas.user import UserCreate, UserResponse
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
-# Create a new user
-@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
-    try:
-        # Check if email already exists
-        result = await db.execute(select(User).where(User.email == user.email))
-        existing_user = result.scalar_one_or_none()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
 
-        # Truncate password if longer than bcrypt limit
-        password_to_hash = user.password[:MAX_BCRYPT_LENGTH]
-        hashed_password = bcrypt.hash(password_to_hash)
+# ---------------------------------------------------------------------------
+# POST /users/  —  Register a new account
+# ---------------------------------------------------------------------------
 
-        db_user = User(
-            email=user.email,
-            hashed_password=hashed_password,
+@router.post(
+    "/",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a new user account",
+    responses={
+        400: {"description": "Email already registered"},
+    },
+)
+async def create_user(
+    user: UserCreate,
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """
+    Create a new local (email + password) user account.
+    The password is hashed with bcrypt before storage; it is never stored in plain text.
+    """
+    result = await db.execute(select(User).where(User.email == user.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
         )
-        db.add(db_user)
-        await db.commit()
-        await db.refresh(db_user)
-        return db_user
-    except Exception:
-        await db.rollback()
-        raise
+
+    db_user = User(
+        email=user.email,
+        hashed_password=bcrypt.hash(user.password),
+        provider="local",
+    )
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    return db_user
+
+
+# ---------------------------------------------------------------------------
+# GET /users/me  —  Return the current user's profile
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="Get the currently authenticated user's profile",
+)
+async def get_me(
+    current_user: User = Depends(get_current_user),
+) -> UserResponse:
+    """Returns the profile of the user whose Bearer token is presented."""
+    return current_user

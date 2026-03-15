@@ -1,56 +1,55 @@
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    create_async_engine,
-)
-from sqlalchemy.orm import sessionmaker, declarative_base
-import os
-from pathlib import Path
-from dotenv import load_dotenv
+"""
+app/db.py
+Async SQLAlchemy engine, session factory, and declarative Base.
+All models import Base from here; all routes get a session via get_db().
+"""
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-# -------------------------------------------------------------------
-# Database URL
-# -------------------------------------------------------------------
-env_path = Path(__file__).parent.parent / ".env"  # adjust path if needed
-load_dotenv(dotenv_path=env_path)
+from app.config import DATABASE_URL
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL environment variable not set! "
-        "Example: postgresql+asyncpg://user:password@host:port/dbname"
-    )
-
-# -------------------------------------------------------------------
-# Create async engine
-# -------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Engine
+# ---------------------------------------------------------------------------
+# pool_pre_ping=True: validates connections before use (survives DB restarts).
 engine = create_async_engine(
     DATABASE_URL,
-    echo=True,          # logs SQL queries (turn off in prod)
-    future=True,
+    echo=False,          # Set True locally to log SQL; never True in production.
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
 )
 
-# -------------------------------------------------------------------
-# Async session factory
-# -------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Session factory
+# ---------------------------------------------------------------------------
 AsyncSessionLocal = sessionmaker(
     bind=engine,
     class_=AsyncSession,
-    expire_on_commit=False,
+    expire_on_commit=False,  # Avoids lazy-load errors after commit.
+    autocommit=False,
+    autoflush=False,
 )
 
-# -------------------------------------------------------------------
-# Base class for models
-# -------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Declarative base — all models inherit from this
+# ---------------------------------------------------------------------------
 Base = declarative_base()
 
-# -------------------------------------------------------------------
-# Dependency for FastAPI routes
-# -------------------------------------------------------------------
-async def get_db():
+
+# ---------------------------------------------------------------------------
+# FastAPI dependency
+# ---------------------------------------------------------------------------
+async def get_db() -> AsyncSession:
+    """
+    Yields an async DB session for the duration of a request.
+    Automatically closed (and rolled back on error) when the request ends.
+    """
     async with AsyncSessionLocal() as session:
         try:
             yield session
+        except Exception:
+            await session.rollback()
+            raise
         finally:
             await session.close()
-
-import app.models
