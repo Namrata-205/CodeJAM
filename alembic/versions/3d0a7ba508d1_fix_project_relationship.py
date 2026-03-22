@@ -23,24 +23,13 @@ import sqlalchemy as sa
 
 
 def upgrade():
-    # 1️⃣ Add column nullable first
-    op.add_column('projects', sa.Column('is_deleted', sa.Boolean(), nullable=True))
-
-    # 2️⃣ Fill existing rows
-    op.execute("UPDATE projects SET is_deleted = FALSE WHERE is_deleted IS NULL")
-
-    # 3️⃣ Make NOT NULL
-    op.alter_column('projects', 'is_deleted', nullable=False)
-
-    # share_id column
-    op.add_column('projects', sa.Column('share_id', sa.UUID(), nullable=True))
-    op.create_index('ix_projects_share_id', 'projects', ['share_id'], unique=True)
+    # Columns already added in base migration
+    pass
 
 
 def downgrade():
-    op.drop_index('ix_projects_share_id', table_name='projects')
-    op.drop_column('projects', 'share_id')
-    op.drop_column('projects', 'is_deleted')
+    # Columns are in base migration
+    pass
 
 def downgrade() -> None:
     """Downgrade schema."""

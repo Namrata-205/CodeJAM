@@ -1,15 +1,44 @@
 services:
   postgres:
-    image: postgres:18
-    container_name: postgres18
+    image: postgres:16
+    container_name: codejam-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: playground
+      POSTGRES_USER: codejam
+      POSTGRES_PASSWORD: codejam123
+      POSTGRES_DB: codejam
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: codejam-redis
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    container_name: codejam-api
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - .env
+    environment:
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=namrata.dalvi23@spit.ac.in
+      - SMTP_PASS=zrmvyzkictttazxq
+      - FROM_EMAIL=namrata.dalvi23@spit.ac.in
+      - FRONTEND_URL=http://localhost:3000
+
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+
+    
 
 volumes:
   pgdata:

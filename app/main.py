@@ -1,16 +1,25 @@
-# app/main.py
 from fastapi import FastAPI
-from app.api import users, projects, auth
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Code Playground API")
+from app.api import auth, collaboration, execute, files, projects, users
 
-# Include routers
-app.include_router(users.router)
+app = FastAPI(title="CodeJam API", debug=True)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # your Vite dev server
+    allow_credentials=True,
+    allow_methods=["*"],    # ← this is what handles OPTIONS preflight
+    allow_headers=["*"],
+)
+
 app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(projects.router)
-from app.api import execute
+app.include_router(collaboration.router)
+app.include_router(collaboration.user_router)
+app.include_router(files.router)
 app.include_router(execute.router)
-
 
 # Optional root endpoint
 @app.get("/")

@@ -105,6 +105,37 @@ async def test_accept_invitation(client, auth_headers):
     assert resp.status_code == 200
     assert "accepted" in resp.json()["message"]
 
+@pytest.mark.asyncio
+async def test_accepted_collaboration_shows_in_my_projects(client, auth_headers):
+    invitee_email = unique_email("invitee2")
+    invitee_headers = await register_and_login(client, invitee_email)
+    pid = await create_project(client, auth_headers)
+
+    await client.post(
+        f"/projects/{pid}/collaborators",
+        json={"email": invitee_email, "role": "viewer"},
+        headers=auth_headers,
+    )
+
+    # before acceptance: should not be visible to invitee
+    resp = await client.get(f"/projects/{pid}", headers=invitee_headers)
+    assert resp.status_code == 404
+
+    resp = await client.get("/projects/", headers=invitee_headers)
+    assert resp.status_code == 200
+    assert pid not in [p["id"] for p in resp.json()]
+
+    # accept invitation
+    await client.post(f"/projects/{pid}/collaborators/accept", headers=invitee_headers)
+
+    # now invitee should be able to access it
+    resp = await client.get(f"/projects/{pid}", headers=invitee_headers)
+    assert resp.status_code == 200
+    assert resp.json()["id"] == pid
+
+    resp = await client.get("/projects/", headers=invitee_headers)
+    assert resp.status_code == 200
+    assert pid in [p["id"] for p in resp.json()]
 
 # ── List collaborators ────────────────────────────────────────────────────────
 

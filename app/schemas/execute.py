@@ -12,6 +12,7 @@ from app.config import SUPPORTED_LANGUAGES
 class ExecuteRequest(BaseModel):
     language: str = Field(..., examples=["python"])
     source_code: str = Field(..., min_length=1, examples=["print('hello')"])
+    stdin: Optional[str] = Field(None, examples=["input data here"])
 
     @classmethod
     def validate_language(cls, v: str) -> str:

@@ -8,6 +8,9 @@ Endpoints:
   POST   /projects/{id}/collaborators/accept   — accept an invitation (invitee)
   PATCH  /projects/{id}/collaborators/{uid}    — change a collaborator's role (owner)
   DELETE /projects/{id}/collaborators/{uid}    — remove a collaborator (owner)
+
+User-specific endpoints:
+  GET    /collaborators/invitations            — list pending invitations for current user
 """
 from uuid import UUID
 
@@ -15,6 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+import logging
+import os
 from app.api.dependencies import get_current_user
 from app.db import get_db
 from app.models.collaborators import ProjectCollaborator
@@ -24,11 +29,21 @@ from app.schemas.collaboration import (
     ChangeRoleRequest,
     CollaboratorResponse,
     InviteRequest,
+    PendingInvitationResponse,
 )
+from app.utils.mail import is_smtp_configured, send_mail_delta
 
+logger = logging.getLogger(__name__)
+
+# redirect_slashes=False prevents FastAPI from issuing a 307 when clients POST
+# to /projects/{id}/collaborators (no trailing slash).  Without this flag,
+# FastAPI sees the canonical path as ending in "/" and redirects bare-path
+# requests — but the test client does not follow redirects, so every invite /
+# list call returned 307 instead of the expected 2xx/4xx.
 router = APIRouter(
     prefix="/projects/{project_id}/collaborators",
     tags=["Collaboration"],
+    redirect_slashes=False,
 )
 
 
@@ -62,10 +77,10 @@ async def _get_collab_or_404(
     return collab
 
 
-# ── POST /invite ──────────────────────────────────────────────────────────────
+# ── POST  — Invite collaborator ───────────────────────────────────────────────
 
 @router.post(
-    "/",
+    "",
     status_code=status.HTTP_201_CREATED,
     summary="Invite a user to collaborate on this project (owner only)",
 )
@@ -80,7 +95,6 @@ async def invite_collaborator(
     if project.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only the project owner can invite collaborators")
 
-    # Resolve the invitee
     result = await db.execute(select(User).where(User.email == body.email))
     invitee = result.scalar_one_or_none()
     if not invitee:
@@ -89,7 +103,6 @@ async def invite_collaborator(
     if invitee.id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot invite yourself")
 
-    # Idempotency — if already a collaborator, return current state
     result = await db.execute(
         select(ProjectCollaborator).where(
             ProjectCollaborator.project_id == project_id,
@@ -110,13 +123,28 @@ async def invite_collaborator(
     db.add(collab)
     await db.commit()
 
+    # attempt email notification in one-off best-effort mode (non-blocking)
+    if is_smtp_configured():
+        try:
+            project_url = f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/projects/{project_id}"
+            send_mail_delta(
+                invitee.email,
+                f"You have been invited to collaborate on {project.name}",
+                f"Hello {invitee.email},\n\n"
+                f"{current_user.email} has invited you to collaborate on the project '{project.name}'.\n"
+                f"Accept the invitation in CodeJam at {project_url}\n\n"
+                "Thanks,\nCodeJam team",
+            )
+        except Exception as exc:
+            logger.warning("Invitation email send failed: %s", exc)
+
     return {"message": f"{body.email} invited as {body.role}. Awaiting acceptance."}
 
 
-# ── GET / — List collaborators ────────────────────────────────────────────────
+# ── GET  — List collaborators ─────────────────────────────────────────────────
 
 @router.get(
-    "/",
+    "",
     response_model=list[CollaboratorResponse],
     summary="List all collaborators on this project (owner or any collaborator)",
 )
@@ -127,7 +155,6 @@ async def list_collaborators(
 ) -> list[CollaboratorResponse]:
     project = await _get_project_or_404(project_id, db)
 
-    # Both the owner and any collaborator can see the list
     is_owner = project.user_id == current_user.id
     if not is_owner:
         result = await db.execute(
@@ -204,7 +231,6 @@ async def change_role(
 
     collab = await _get_collab_or_404(project_id, user_id, db)
 
-    # Fetch the collaborator's email for the response
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
@@ -244,3 +270,46 @@ async def remove_collaborator(
 
     await db.delete(collab)
     await db.commit()
+
+
+# ── User-specific collaboration endpoints ─────────────────────────────────────
+
+user_router = APIRouter(prefix="/collaborators", tags=["Collaboration"])
+
+
+@user_router.get(
+    "/invitations",
+    response_model=list[PendingInvitationResponse],
+    summary="List pending collaboration invitations for the current user",
+)
+async def list_pending_invitations(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PendingInvitationResponse]:
+    result = await db.execute(
+        select(ProjectCollaborator, Project.name, User.email)
+        .join(Project, Project.id == ProjectCollaborator.project_id)
+        .join(User, User.id == ProjectCollaborator.invited_by)
+        .where(
+            ProjectCollaborator.user_id == current_user.id,
+            ProjectCollaborator.accepted == False,
+            Project.is_deleted == False,
+        )
+        .order_by(ProjectCollaborator.created_at.desc())
+    )
+    rows = result.all()
+
+    return [
+        PendingInvitationResponse(
+            project_id=row.ProjectCollaborator.project_id,
+            project_name=row.name,
+            invited_by_email=row.email,
+            role=row.ProjectCollaborator.role,
+            created_at=row.ProjectCollaborator.created_at,
+        )
+        for row in rows
+    ]
+
+
+# Export both routers
+__all__ = ["router", "user_router"]

@@ -50,7 +50,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_project_collaborators_project_id'), 'project_collaborators', ['project_id'], unique=False)
     op.create_index(op.f('ix_project_collaborators_user_id'), 'project_collaborators', ['user_id'], unique=False)
-    op.add_column('projects', sa.Column('description', sa.Text(), nullable=True))
+    # Description column already exists in base migration
     op.alter_column('projects', 'is_public',
                existing_type=sa.BOOLEAN(),
                nullable=False)
@@ -85,7 +85,7 @@ def downgrade() -> None:
     op.alter_column('projects', 'is_public',
                existing_type=sa.BOOLEAN(),
                nullable=True)
-    op.drop_column('projects', 'description')
+    # Description column is in base migration
     op.drop_index(op.f('ix_project_collaborators_user_id'), table_name='project_collaborators')
     op.drop_index(op.f('ix_project_collaborators_project_id'), table_name='project_collaborators')
     op.drop_table('project_collaborators')

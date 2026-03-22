@@ -1,29 +1,25 @@
 """
 tests/conftest.py
 Pytest fixtures shared across all test modules.
-Uses an in-memory SQLite database (via aiosqlite) so no external DB is needed.
-
-Key design decisions:
-- Tables are created fresh before every test and dropped after (function scope).
-  This guarantees a clean slate so no "Email already registered" collisions occur.
-- unique_email() generates a UUID-based address for any fixture or test that
-  needs to register a user, preventing cross-test interference.
 """
+import asyncio
+import os
 import uuid
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
+# Import ALL models before Base.metadata is used, so every table is registered.
+import app.models  # noqa: F401  — registers User, Project, ProjectCollaborator, File
 from app.db import Base, get_db
 from app.main import app
 
-# ── In-memory async SQLite ────────────────────────────────────────────────────
-# A fresh file-based name per test run avoids any cross-engine state issues
-# with aiosqlite's in-memory mode.
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# ── File-based SQLite (shared across connections in the same process) ─────────
+TEST_DB_PATH = os.path.join(os.path.dirname(__file__), "test_db.sqlite")
+TEST_DATABASE_URL = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
 
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
@@ -40,56 +36,96 @@ TestSessionLocal = sessionmaker(
 )
 
 
-# ── Override get_db to use the test DB ───────────────────────────────────────
+# ── Override get_db to use the test engine ────────────────────────────────────
 async def override_get_db():
     async with TestSessionLocal() as session:
-        yield session
+        try:
+            yield session
+        finally:
+            await session.close()
 
 
 app.dependency_overrides[get_db] = override_get_db
 
 
-# ── Create / drop tables around EACH individual test ─────────────────────────
-# scope="function" (the default) means every test gets a completely empty DB.
-# This prevents any "Email already registered" or stale-data failures.
-@pytest_asyncio.fixture(autouse=True)
-async def reset_db():
-    async with test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+# ── Session-level setup: clean up DB file at the end ─────────────────────────
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_db_file():
+    # Before all tests: remove any existing test DB
+    if os.path.exists(TEST_DB_PATH):
+        try:
+            os.unlink(TEST_DB_PATH)
+        except OSError:
+            pass
+    
     yield
+    
+    # After all tests: remove the test DB
+    if os.path.exists(TEST_DB_PATH):
+        try:
+            os.unlink(TEST_DB_PATH)
+        except OSError:
+            pass
+
+
+# ── Function-level: Create/drop tables for each test ─────────────────────────
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def reset_db():
+    """
+    Drop all tables, recreate them fresh before each test.
+    This ensures complete isolation between tests.
+    
+    CRITICAL: This must complete BEFORE any test code runs.
+    """
+    # Ensure we're using the test engine
+    async with test_engine.begin() as conn:
+        # Drop all tables
+        await conn.run_sync(Base.metadata.drop_all)
+        # Create all tables fresh
+        await conn.run_sync(Base.metadata.create_all)
+    
+    # Tables are now ready - yield to the test
+    yield
+    
+    # After test completes, drop tables again for cleanliness
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
 
 # ── Unique email helper ───────────────────────────────────────────────────────
 def unique_email(prefix: str = "user") -> str:
-    """Return a globally unique email address for use in tests."""
+    """Return a UUID-suffixed email address guaranteed to be unique per call."""
     return f"{prefix}_{uuid.uuid4().hex[:8]}@example.com"
 
 
 # ── HTTP client ───────────────────────────────────────────────────────────────
-@pytest_asyncio.fixture
-async def client():
+@pytest_asyncio.fixture(scope="function")
+async def client(reset_db):
+    """
+    HTTP client for testing the API.
+    Depends on reset_db to ensure tables exist before making requests.
+    """
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
+        timeout=30.0,
     ) as ac:
         yield ac
 
 
-# ── Primary authenticated user ────────────────────────────────────────────────
-@pytest_asyncio.fixture
+# ── Primary authenticated user (fresh per test) ───────────────────────────────
+@pytest_asyncio.fixture(scope="function")
 async def registered_user(client):
-    """Registers a fresh user per test and returns their credentials."""
+    """Registers a unique user for this test and returns their credentials."""
     payload = {"email": unique_email("owner"), "password": "testpass123"}
     resp = await client.post("/users/", json=payload)
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 201, f"Failed to register user: {resp.text}"
     return payload
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def auth_headers(client, registered_user):
-    """Returns Authorization headers for the per-test registered user."""
+    """Returns Bearer Authorization headers for the per-test registered user."""
     resp = await client.post(
         "/auth/login",
         data={
@@ -97,6 +133,6 @@ async def auth_headers(client, registered_user):
             "password": registered_user["password"],
         },
     )
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 200, f"Failed to login: {resp.text}"
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

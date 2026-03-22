@@ -48,6 +48,7 @@ def execute_code(
             run_code,
             data.language,
             data.source_code,
+            data.stdin or "",
             job_timeout=60,     # RQ-level guard; worker also enforces EXECUTION_TIMEOUT
         )
     except Exception as exc:

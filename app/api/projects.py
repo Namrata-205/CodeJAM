@@ -65,6 +65,7 @@ async def _get_accessible_project(
         .where(
             Project.id == project_id,
             ProjectCollaborator.user_id == current_user.id,
+            ProjectCollaborator.accepted.is_(True),
             Project.is_deleted.is_(False),
         )
     )
@@ -108,19 +109,38 @@ async def create_project(
 @router.get(
     "/",
     response_model=list[ProjectResponse],
-    summary="List all projects owned by the current user",
+    summary="List all projects owned by the current user or accepted collaborations",
 )
 async def list_my_projects(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[ProjectResponse]:
-    result = await db.execute(
+    # Owned projects
+    owner_result = await db.execute(
         select(Project).where(
             Project.user_id == current_user.id,
             Project.is_deleted.is_(False),
         )
     )
-    return result.scalars().all()
+    owner_projects = owner_result.scalars().all()
+
+    # Accepted collaborator projects
+    collab_result = await db.execute(
+        select(Project)
+        .join(ProjectCollaborator, Project.id == ProjectCollaborator.project_id)
+        .where(
+            ProjectCollaborator.user_id == current_user.id,
+            ProjectCollaborator.accepted.is_(True),
+            Project.is_deleted.is_(False),
+        )
+    )
+    collab_projects = collab_result.scalars().all()
+
+    projects_by_id = {project.id: project for project in owner_projects}
+    for project in collab_projects:
+        projects_by_id[project.id] = project
+
+    return list(projects_by_id.values())
 
 
 # ── List public projects ──────────────────────────────────────────────────────

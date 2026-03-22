@@ -30,11 +30,15 @@ const RegisterPage = () => {
       return;
     }
 
-    const result = register(email, password);
-    if (result.success) {
+    try {
+      await register(email, password);
       navigate('/dashboard');
-    } else {
-      setError('Registration failed');
+    } catch (e) {
+      if (e?.message?.includes('already registered')) {
+        setError('This email is already in use. Please use another or login.');
+      } else {
+        setError(e?.message || 'Registration failed. Please try again.');
+      }
     }
   };
 

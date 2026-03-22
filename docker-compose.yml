@@ -1,0 +1,102 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: codejam-postgres
+    environment:
+      POSTGRES_USER: codejam
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-codejam123}
+      POSTGRES_DB: codejam
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codejam"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis (Job Queue)
+  redis:
+    image: redis:7-alpine
+    container_name: codejam-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: codejam-api
+    ports:
+      - "8004:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://codejam:${POSTGRES_PASSWORD:-codejam123}@postgres:5432/codejam
+      REDIS_HOST: redis
+      REDIS_PORT: 6379   # ✅ FIXED
+      SECRET_KEY: ${SECRET_KEY}
+      EXECUTION_TIMEOUT: 10
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: namrata.dalvi23@spit.ac.in
+      SMTP_PASS: zrmvyzkictttazxq
+      FROM_EMAIL: namrata.dalvi23@spit.ac.in
+      FRONTEND_URL: http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  # RQ Worker (Code Execution)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: codejam-worker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://codejam:${POSTGRES_PASSWORD:-codejam123}@postgres:5432/codejam
+      REDIS_HOST: redis
+      REDIS_PORT: 6379   # ✅ FIXED
+      SECRET_KEY: ${SECRET_KEY}
+      EXECUTION_TIMEOUT: 10
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: namrata.dalvi23@spit.ac.in
+      SMTP_PASS: zrmvyzkictttazxq
+      FROM_EMAIL: namrata.dalvi23@spit.ac.in
+      FRONTEND_URL: http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 512m
+    cpus: 1.0
+    # ❌ REMOVED network_mode (important fix)
+
+volumes:
+  postgres_data:
+  redis_data:

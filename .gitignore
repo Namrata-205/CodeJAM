@@ -61,3 +61,8 @@ venv.bak/
 
 # MacOS
 .DS_Store
+
+# Environment variables
+.env
+.env.*
+*/.env
