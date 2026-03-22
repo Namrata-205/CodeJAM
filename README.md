@@ -392,18 +392,11 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 👤 Author
 
 **Your Name**
-- GitHub: [@yourusername](https://github.com/Namrata-205)
-- Portfolio: [yourwebsite.com](https://namratadalvi.vercel.app)
+- GitHub: [ttps://github.com/Namrata-205](https://github.com/Namrata-205)
+- Portfolio: [https://namratadalvi.vercel.app](https://namratadalvi.vercel.app)
 
 ---
 
-## 🙏 Acknowledgments
 
-- FastAPI framework and documentation
-- SQLAlchemy async patterns
-- RQ (Redis Queue) for background jobs
-- PostgreSQL community
 
----
-
-**Built with ❤️ using FastAPI, PostgreSQL, and Redis**
+**Built with ❤️ by Namrata**
