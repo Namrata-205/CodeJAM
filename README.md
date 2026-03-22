@@ -392,9 +392,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 👤 Author
 
 **Your Name**
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [yourprofile](https://linkedin.com/in/yourprofile)
-- Portfolio: [yourwebsite.com](https://yourwebsite.com)
+- GitHub: [@yourusername](https://github.com/Namrata-205)
+- Portfolio: [yourwebsite.com](https://namratadalvi.vercel.app)
 
 ---
 
