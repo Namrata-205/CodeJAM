@@ -391,7 +391,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 👤 Author
 
-**Your Name**
+**Namrata Dalvi**
 - GitHub: [ttps://github.com/Namrata-205](https://github.com/Namrata-205)
 - Portfolio: [https://namratadalvi.vercel.app](https://namratadalvi.vercel.app)
 
