@@ -62,7 +62,9 @@ async def create_file(
 ) -> FileResponse:
     # Validate parent_id if provided
     if data.parent_id:
-        await _get_file_or_404(data.parent_id, project_id, db)
+        parent = await _get_file_or_404(data.parent_id, project_id, db)
+        if parent.language != "__folder__":
+            raise HTTPException(status_code=400, detail="Parent must be a folder")
 
     f = File(
         project_id=project_id,

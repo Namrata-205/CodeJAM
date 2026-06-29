@@ -5,11 +5,13 @@ uvicorn[standard]>=0.29.0
 # ── Database ──────────────────────────────────────────────────────────────────
 sqlalchemy>=2.0.0
 asyncpg>=0.29.0              # async PostgreSQL driver
+aiosqlite>=0.20.0            # async SQLite driver for local development
 alembic>=1.13.0
 
 # ── Auth & Security ───────────────────────────────────────────────────────────
 python-jose[cryptography]>=3.3.0   # JWT encode/decode (used in auth.py & dependencies.py)
 passlib[bcrypt]>=1.7.4             # Password hashing
+bcrypt>=4.0.1,<5.0.0               # Compatible with passlib bcrypt backend
 python-multipart>=0.0.9            # Required for OAuth2PasswordRequestForm
 
 # ── Config ────────────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ from app.api.dependencies import get_current_user
 from app.api.permissions import require_edit_access, require_owner
 from app.db import get_db
 from app.models.collaborators import ProjectCollaborator
+from app.models.files import File
 from app.models.projects import Project
 from app.models.user import User
 from app.schemas.projects import (
@@ -29,6 +30,7 @@ from app.schemas.projects import (
     PublicProjectResponse,
     ShareLinkResponse,
 )
+from app.workspace_templates import get_template_files
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -65,6 +67,7 @@ async def _get_accessible_project(
         .where(
             Project.id == project_id,
             ProjectCollaborator.user_id == current_user.id,
+            ProjectCollaborator.accepted.is_(True),
             Project.is_deleted.is_(False),
         )
     )
@@ -98,6 +101,41 @@ async def create_project(
         user_id=current_user.id,
     )
     db.add(project)
+    await db.flush()
+
+    template_files = get_template_files(data.template)
+    folders: dict[tuple[str | None, str], File] = {}
+    for template_file in template_files:
+        if not template_file.is_folder:
+            continue
+        parent = folders.get((None, template_file.parent_name))
+        folder = File(
+            project_id=project.id,
+            parent_id=parent.id if parent else None,
+            name=template_file.name,
+            language=template_file.language,
+            content=template_file.content,
+        )
+        db.add(folder)
+        await db.flush()
+        folders[(template_file.parent_name, template_file.name)] = folder
+
+    folders_by_name = {folder.name: folder for folder in folders.values()}
+
+    for template_file in template_files:
+        if template_file.is_folder:
+            continue
+        parent = folders_by_name.get(template_file.parent_name)
+        db.add(
+            File(
+                project_id=project.id,
+                parent_id=parent.id if parent else None,
+                name=template_file.name,
+                language=template_file.language,
+                content=template_file.content,
+            )
+        )
+
     await db.commit()
     await db.refresh(project)
     return project

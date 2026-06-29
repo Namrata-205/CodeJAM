@@ -2,12 +2,11 @@
 app/api/auth.py
 Authentication endpoints: login and token refresh.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import jwt
-from passlib.hash import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -15,6 +14,7 @@ from app.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
 from app.db import get_db
 from app.models.user import User
 from app.schemas.auth import TokenResponse
+from app.security import verify_password
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 def create_access_token(user_id: str, expires_delta: timedelta | None = None) -> str:
     """Encode a signed JWT containing the user's UUID as the 'sub' claim."""
-    expire = datetime.utcnow() + (
+    expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     payload = {"sub": user_id, "exp": expire}
@@ -62,7 +62,7 @@ async def login(
             detail="Incorrect email or password",
         )
 
-    if not bcrypt.verify(form_data.password, user.hashed_password):
+    if not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incorrect email or password",

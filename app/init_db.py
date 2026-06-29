@@ -1,14 +1,13 @@
 import asyncio
 
 from app.db import engine, Base
-from app.models.user import User   # IMPORTANT: import model
-from app.models.project import Project
+import app.models  # noqa: F401  # Register all models with Base.metadata.
 
 
 async def init_models():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        print("✅ Tables created successfully")
+        print("Tables created successfully")
 
 
 if __name__ == "__main__":

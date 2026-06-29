@@ -1,0 +1,19 @@
+FROM node:20-bookworm-slim AS frontend-dependencies
+WORKDIR /opt/frontend
+COPY runtime/package.json ./package.json
+RUN npm install --no-audit --no-fund
+
+FROM node:20-bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+RUN python3 -m venv /opt/py \
+    && /opt/py/bin/pip install --no-cache-dir fastapi==0.111.1 "uvicorn[standard]==0.30.6"
+ENV PATH="/opt/py/bin:$PATH"
+RUN addgroup --system runner && adduser --system --ingroup runner runner
+COPY --from=frontend-dependencies --chown=runner:runner /opt/frontend/node_modules /opt/frontend-node_modules
+COPY runtime/entrypoint.sh /usr/local/bin/codejam-workspace-start
+RUN chmod 0555 /usr/local/bin/codejam-workspace-start
+USER runner
+EXPOSE 8000
+ENTRYPOINT ["/usr/local/bin/codejam-workspace-start"]

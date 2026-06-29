@@ -3,7 +3,6 @@ app/api/users.py
 User registration and profile endpoints.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from passlib.hash import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -11,6 +10,7 @@ from app.api.dependencies import get_current_user
 from app.db import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse
+from app.security import hash_password
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -45,7 +45,7 @@ async def create_user(
 
     db_user = User(
         email=user.email,
-        hashed_password=bcrypt.hash(user.password),
+        hashed_password=hash_password(user.password),
         provider="local",
     )
     db.add(db_user)

@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: codejam-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: "CodeJam"
+      - key: SMTP_STARTTLS
+        value: "true"
+      - key: EXECUTION_TIMEOUT
+        value: "10"
+
+  - type: worker
+    name: codejam-worker
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.worker
+    envVars:
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: EXECUTION_TIMEOUT
+        value: "10"

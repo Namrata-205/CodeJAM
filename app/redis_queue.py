@@ -6,13 +6,19 @@ All connection parameters come from app/config.py (sourced from .env).
 import redis
 from rq import Queue
 
-from app.config import REDIS_DB, REDIS_HOST, REDIS_PORT
+from app.config import REDIS_DB, REDIS_HOST, REDIS_PORT, REDIS_URL
 
-redis_conn = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    db=REDIS_DB,
-    decode_responses=False,     # RQ requires bytes mode
-)
+if REDIS_URL:
+    redis_conn = redis.Redis.from_url(
+        REDIS_URL,
+        decode_responses=False,     # RQ requires bytes mode
+    )
+else:
+    redis_conn = redis.Redis(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
+        db=REDIS_DB,
+        decode_responses=False,     # RQ requires bytes mode
+    )
 
 code_queue = Queue("code_execution", connection=redis_conn)

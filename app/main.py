@@ -1,19 +1,48 @@
-# app/main.py
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from app.api import users, projects, auth
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Code Playground API")
+from app.api import auth, collaboration, execute, files, projects, runtimes, users
+from app.config import AUTO_CREATE_SQLITE_TABLES, CORS_ORIGINS, DATABASE_URL
 
-# Include routers
-app.include_router(users.router)
+
+async def create_local_sqlite_tables() -> None:
+    if not AUTO_CREATE_SQLITE_TABLES or not DATABASE_URL.startswith("sqlite"):
+        return
+
+    import app.models  # noqa: F401  # Register all models with Base.metadata.
+    from app.db import Base, engine
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await create_local_sqlite_tables()
+    yield
+
+
+app = FastAPI(title="CodeJam API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(auth.router)
+app.include_router(users.router)
 app.include_router(projects.router)
-from app.api import execute
+app.include_router(collaboration.router)
+app.include_router(files.router)
 app.include_router(execute.router)
+app.include_router(runtimes.router)
 
 
-# Optional root endpoint
 @app.get("/")
 async def root():
     return {"message": "Welcome to Code Playground API!"}
-

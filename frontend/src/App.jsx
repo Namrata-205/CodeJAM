@@ -8,6 +8,7 @@ import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
 import ProfilePage from './pages/ProfilePage';
+import InvitePage from './pages/InvitePage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -40,6 +41,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/invite/:projectId"
+              element={
+                <ProtectedRoute>
+                  <InvitePage />
                 </ProtectedRoute>
               }
             />

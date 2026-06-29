@@ -36,6 +36,7 @@ async def test_viewer_cannot_edit_code(client, auth_headers):
         json={"email": viewer_email, "role": "viewer"},
         headers=auth_headers,
     )
+    await client.post(f"/projects/{pid}/collaborators/accept", headers=viewer_headers)
 
     resp = await client.put(
         f"/projects/{pid}/code",
@@ -63,6 +64,7 @@ async def test_editor_can_edit_code(client, auth_headers):
         json={"email": editor_email, "role": "editor"},
         headers=auth_headers,
     )
+    await client.post(f"/projects/{pid}/collaborators/accept", headers=editor_headers)
 
     resp = await client.put(
         f"/projects/{pid}/code",
@@ -91,6 +93,7 @@ async def test_editor_cannot_update_metadata(client, auth_headers):
         json={"email": editor_email, "role": "editor"},
         headers=auth_headers,
     )
+    await client.post(f"/projects/{pid}/collaborators/accept", headers=editor_headers)
 
     resp = await client.patch(
         f"/projects/{pid}",
@@ -135,6 +138,7 @@ async def test_only_owner_can_delete(client, auth_headers):
         json={"email": editor_email, "role": "editor"},
         headers=auth_headers,
     )
+    await client.post(f"/projects/{pid}/collaborators/accept", headers=editor_headers)
 
     resp = await client.delete(f"/projects/{pid}", headers=editor_headers)
     assert resp.status_code == 403

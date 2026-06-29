@@ -23,6 +23,15 @@ class InviteRequest(BaseModel):
         return v
 
 
+class InviteResponse(BaseModel):
+    message: str
+    role: str
+    accept_url: str
+    mailto_url: str
+    email_sent: bool = False
+    email_error: Optional[str] = None
+
+
 class ChangeRoleRequest(BaseModel):
     role: str
 

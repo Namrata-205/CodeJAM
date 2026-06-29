@@ -3,11 +3,11 @@ app/models/collaborators.py
 Junction table linking Users to Projects with a role and acceptance state.
 """
 import uuid
+from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID
+from app.models.types import GUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
 from app.db import Base
 
@@ -15,16 +15,16 @@ from app.db import Base
 class ProjectCollaborator(Base):
     __tablename__ = "project_collaborators"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
 
     project_id = Column(
-        UUID(as_uuid=True),
+        GUID(),
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     user_id = Column(
-        UUID(as_uuid=True),
+        GUID(),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -38,14 +38,14 @@ class ProjectCollaborator(Base):
 
     # Who sent the invite (owner's user_id)
     invited_by = Column(
-        UUID(as_uuid=True),
+        GUID(),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
 
     created_at = Column(
         DateTime(timezone=True),
-        server_default=func.now(),
+        default=datetime.utcnow,
         nullable=False,
     )
 

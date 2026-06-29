@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+import sqlalchemy.dialects.postgresql as psql
 
 
 # revision identifiers, used by Alembic.
@@ -18,11 +19,10 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def upgrade() -> None:
-    """Upgrade schema."""
-    pass
+def upgrade():
+    op.add_column('projects', sa.Column('is_deleted', sa.Boolean(), nullable=False, server_default=sa.false()))
+    op.add_column('projects', sa.Column('share_id', psql.UUID(as_uuid=True), nullable=True, unique=True))
 
-
-def downgrade() -> None:
-    """Downgrade schema."""
-    pass
+def downgrade():
+    op.drop_column('projects', 'share_id')
+    op.drop_column('projects', 'is_deleted')

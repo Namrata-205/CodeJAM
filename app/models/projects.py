@@ -3,11 +3,11 @@ app/models/projects.py
 SQLAlchemy model for code projects.
 """
 import uuid
+from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from app.models.types import GUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
 from app.db import Base
 
@@ -16,7 +16,7 @@ class Project(Base):
     __tablename__ = "projects"
 
     id = Column(
-        UUID(as_uuid=True),
+        GUID(),
         primary_key=True,
         default=uuid.uuid4,
         index=True,
@@ -33,7 +33,7 @@ class Project(Base):
 
     # ── Ownership ────────────────────────────────────────────────────────────
     user_id = Column(
-        UUID(as_uuid=True),
+        GUID(),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -42,12 +42,12 @@ class Project(Base):
     # ── Timestamps ───────────────────────────────────────────────────────────
     created_at = Column(
         DateTime(timezone=True),
-        server_default=func.now(),
+        default=datetime.utcnow,
         nullable=False,
     )
     updated_at = Column(
         DateTime(timezone=True),
-        onupdate=func.now(),
+        onupdate=datetime.utcnow,
     )
 
     # ── Soft delete ──────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ class Project(Base):
 
     # ── Public share link ────────────────────────────────────────────────────
     # Generated on demand; presence means the project is shareable without auth.
-    share_id = Column(UUID(as_uuid=True), unique=True, index=True, nullable=True)
+    share_id = Column(GUID(), unique=True, index=True, nullable=True)
 
     # ── Relationships ────────────────────────────────────────────────────────
     owner = relationship("User", backref="projects", lazy="joined")

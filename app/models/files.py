@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from app.models.types import GUID
 from sqlalchemy.orm import relationship
 
 from app.db import Base
@@ -15,10 +15,10 @@ from app.db import Base
 class File(Base):
     __tablename__ = "files"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
 
     project_id = Column(
-        UUID(as_uuid=True),
+        GUID(),
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -26,7 +26,7 @@ class File(Base):
 
     # NULL means root-level file; non-NULL means nested inside a directory file
     parent_id = Column(
-        UUID(as_uuid=True),
+        GUID(),
         ForeignKey("files.id", ondelete="CASCADE"),
         nullable=True,
     )

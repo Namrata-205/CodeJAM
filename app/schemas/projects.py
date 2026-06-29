@@ -3,7 +3,7 @@ app/schemas/projects.py
 Pydantic models for project creation, updates, and API responses.
 """
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -33,7 +33,7 @@ class ProjectBase(BaseModel):
 # ── Create ────────────────────────────────────────────────────────────────────
 
 class ProjectCreate(ProjectBase):
-    pass
+    template: Literal["react-fastapi"] | None = None
 
 
 # ── Metadata update (PATCH — all fields optional) ─────────────────────────────

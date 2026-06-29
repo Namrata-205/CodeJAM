@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Code2, Mail, Lock } from 'lucide-react';
+import { Code2, Mail, Lock, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const RegisterPage = () => {
@@ -8,11 +8,14 @@ const RegisterPage = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
     setError('');
 
     if (!email || !password || !confirmPassword) {
@@ -30,11 +33,14 @@ const RegisterPage = () => {
       return;
     }
 
-    const result = register(email, password);
-    if (result.success) {
+    setLoading(true);
+    try {
+      await register(email, password);
       navigate('/dashboard');
-    } else {
-      setError('Registration failed');
+    } catch (err) {
+      setError(err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -113,9 +119,11 @@ const RegisterPage = () => {
 
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition-all"
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg hover:shadow-cyan-500/50 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Register
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loading ? 'Creating account...' : 'Register'}
             </button>
           </form>
 

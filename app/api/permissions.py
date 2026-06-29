@@ -59,6 +59,7 @@ async def get_project_role(
         select(ProjectCollaborator).where(
             ProjectCollaborator.project_id == project_id,
             ProjectCollaborator.user_id == user.id,
+            ProjectCollaborator.accepted.is_(True),
         )
     )
     collab = result.scalar_one_or_none()
@@ -79,7 +80,14 @@ async def require_view_access(
     user: User = Depends(get_current_user),
 ) -> str:
     """Grants access to owners, editors, and viewers."""
-    project_id = UUID(request.path_params["project_id"])
+    try:
+        project_id = UUID(request.path_params.get("project_id"))
+    except (KeyError, ValueError, TypeError) as e:
+        # This should never happen if routes are configured correctly
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal error: project_id not found in path. Path params: {dict(request.path_params)}"
+        )
     return await get_project_role(project_id, db, user)
 
 
@@ -89,7 +97,13 @@ async def require_edit_access(
     user: User = Depends(get_current_user),
 ) -> str:
     """Grants access to owners and editors only."""
-    project_id = UUID(request.path_params["project_id"])
+    try:
+        project_id = UUID(request.path_params.get("project_id"))
+    except (KeyError, ValueError, TypeError) as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal error: project_id not found in path. Path params: {dict(request.path_params)}"
+        )
     role = await get_project_role(project_id, db, user)
     if role not in ("owner", "editor"):
         raise HTTPException(status_code=403, detail="You only have view permission")
@@ -102,7 +116,13 @@ async def require_owner(
     user: User = Depends(get_current_user),
 ) -> str:
     """Grants access to the project owner only."""
-    project_id = UUID(request.path_params["project_id"])
+    try:
+        project_id = UUID(request.path_params.get("project_id"))
+    except (KeyError, ValueError, TypeError) as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal error: project_id not found in path. Path params: {dict(request.path_params)}"
+        )
     role = await get_project_role(project_id, db, user)
     if role != "owner":
         raise HTTPException(status_code=403, detail="Only the project owner can perform this action")

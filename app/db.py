@@ -12,13 +12,18 @@ from app.config import DATABASE_URL
 # Engine
 # ---------------------------------------------------------------------------
 # pool_pre_ping=True: validates connections before use (survives DB restarts).
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,          # Set True locally to log SQL; never True in production.
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-)
+engine_kwargs = {
+    "echo": False,  # Set True locally to log SQL; never True in production.
+    "pool_pre_ping": True,
+}
+
+if DATABASE_URL.startswith("sqlite"):
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    engine_kwargs["pool_size"] = 10
+    engine_kwargs["max_overflow"] = 20
+
+engine = create_async_engine(DATABASE_URL, **engine_kwargs)
 
 # ---------------------------------------------------------------------------
 # Session factory
