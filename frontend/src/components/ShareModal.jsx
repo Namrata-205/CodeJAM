@@ -165,6 +165,9 @@ const ShareModal = ({ project, onClose }) => {
                   placeholder="collaborator@example.com"
                   className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 text-sm"
                 />
+                <p className="text-xs text-gray-500 mt-1.5">
+                  The collaborator must already have a CodeJam account with this exact email address.
+                </p>
               </div>
 
               <div>

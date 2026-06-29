@@ -11,6 +11,7 @@ Endpoints:
 """
 from uuid import UUID
 from urllib.parse import quote
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +29,8 @@ from app.schemas.collaboration import (
     InviteRequest,
     InviteResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 # redirect_slashes=False prevents FastAPI from issuing a 307 when clients POST
 # to /projects/{id}/collaborators (no trailing slash).  Without this flag,
@@ -125,16 +128,34 @@ async def invite_collaborator(
     db: AsyncSession = Depends(get_db),
 ) -> InviteResponse:
     project = await _get_project_or_404(project_id, db)
+    logger.info(
+        "Invite requested: project_id=%s invitee=%s role=%s inviter=%s",
+        project_id,
+        body.email,
+        body.role,
+        current_user.email,
+    )
 
     if project.user_id != current_user.id:
+        logger.warning(
+            "Invite denied: non-owner inviter=%s project_id=%s",
+            current_user.email,
+            project_id,
+        )
         raise HTTPException(status_code=403, detail="Only the project owner can invite collaborators")
 
     result = await db.execute(select(User).where(User.email == body.email))
     invitee = result.scalar_one_or_none()
     if not invitee:
+        logger.info(
+            "Invite failed: invitee account does not exist email=%s project_id=%s",
+            body.email,
+            project_id,
+        )
         raise HTTPException(status_code=404, detail="No user found with that email address")
 
     if invitee.id == current_user.id:
+        logger.info("Invite failed: user tried to invite self email=%s", current_user.email)
         raise HTTPException(status_code=400, detail="You cannot invite yourself")
 
     result = await db.execute(
@@ -146,6 +167,12 @@ async def invite_collaborator(
     existing = result.scalar_one_or_none()
     if existing:
         accept_url = _build_accept_url(request, project_id)
+        logger.info(
+            "Invite skipped: collaborator already exists email=%s project_id=%s accepted=%s",
+            body.email,
+            project_id,
+            existing.accepted,
+        )
         return _invite_response(
             body.email,
             project.name,
@@ -168,6 +195,15 @@ async def invite_collaborator(
     subject = f"CodeJam collaboration invite: {project.name}"
     body_text = _invite_email_text(project.name, body.role, accept_url)
     email_result = send_email(body.email, subject, body_text)
+    if email_result.sent:
+        logger.info("Invite email sent: email=%s project_id=%s", body.email, project_id)
+    else:
+        logger.warning(
+            "Invite email not sent: email=%s project_id=%s error=%s",
+            body.email,
+            project_id,
+            email_result.error,
+        )
     return _invite_response(
         body.email,
         project.name,
