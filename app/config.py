@@ -48,8 +48,14 @@ CORS_ORIGINS: list[str] = [
 ]
 FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
-# Email / SMTP. If SMTP_HOST is unset, invite links are generated but email is
-# not sent automatically.
+# Email. Resend is recommended on Render because it uses HTTPS instead of SMTP.
+# SMTP remains available as a fallback for local/private deployments.
+RESEND_API_KEY: str | None = os.getenv("RESEND_API_KEY")
+RESEND_FROM_EMAIL: str | None = os.getenv("RESEND_FROM_EMAIL")
+RESEND_FROM_NAME: str = os.getenv("RESEND_FROM_NAME", "CodeJam")
+
+# If neither Resend nor SMTP is configured, invite links are still generated,
+# but email is not sent automatically.
 SMTP_HOST: str | None = os.getenv("SMTP_HOST")
 SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME: str | None = os.getenv("SMTP_USERNAME")

@@ -114,6 +114,14 @@ REDIS_PORT=6379
 EXECUTION_TIMEOUT=10
 ```
 
+For collaboration invite emails on deployed apps, use Resend:
+
+```env
+RESEND_API_KEY=re_your_generated_api_key
+RESEND_FROM_EMAIL=onboarding@resend.dev
+RESEND_FROM_NAME=CodeJam
+```
+
 Run database migrations:
 
 ```bash
@@ -296,6 +304,28 @@ Also configure the Vercel frontend environment with the backend URL:
 ```env
 VITE_API_URL=https://your-backend-url.example.com
 ```
+
+## Collaboration Invite Email Setup
+
+For Render deployment, Resend is recommended because it sends emails through HTTPS instead of SMTP. This avoids the SMTP network error that can happen on Render.
+
+Add these only in the Render backend service environment variables:
+
+```env
+RESEND_API_KEY=re_your_generated_api_key
+RESEND_FROM_EMAIL=onboarding@resend.dev
+RESEND_FROM_NAME=CodeJam
+```
+
+Do not commit the real API key to GitHub. After adding the variables, redeploy the backend.
+
+For production, you can later verify your own domain in Resend and replace the sender with something like:
+
+```env
+RESEND_FROM_EMAIL=no-reply@yourdomain.com
+```
+
+If Resend is not configured, CodeJam falls back to SMTP. If neither Resend nor SMTP is configured, the invite link is still created and can be copied manually.
 
 ## Run the Code Execution Worker
 
