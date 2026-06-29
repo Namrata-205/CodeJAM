@@ -47,7 +47,7 @@ const ShareModal = ({ project, onClose }) => {
       const res = await inviteCollaborator(project.id, email.trim(), role);
       const emailNote = res.email_sent
         ? ' Email sent.'
-        : ' Email was not sent automatically; use Copy link or Open email below.';
+        : ' Invite created, but automatic email was not sent. Use Copy link or Open email below.';
       setInviteMsg({ type: 'success', text: `${res.message || 'Invitation created.'}${emailNote}` });
       setInviteDetails(res);
       setEmail('');
@@ -202,6 +202,12 @@ const ShareModal = ({ project, onClose }) => {
 
               {inviteDetails?.accept_url && (
                 <div className="space-y-3 rounded-lg border border-slate-700 bg-slate-800/60 p-3">
+                  {!inviteDetails.email_sent && inviteDetails.email_error && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                      <p className="font-semibold">Why automatic email did not send:</p>
+                      <p className="mt-1 font-mono break-words">{inviteDetails.email_error}</p>
+                    </div>
+                  )}
                   <p className="text-xs text-gray-400">
                     Send this invite link to the collaborator. They must log in with the invited email before accepting.
                   </p>

@@ -56,19 +56,13 @@ const LandingPage = () => {
                 An online code playground supporting multiple languages with real-time
                 execution and collaboration. Build, test, and share your code with the world.
               </p>
-              <div className="flex justify-center space-x-4">
+              <div className="flex justify-center">
                 <Link
                   to="/register"
                   className="group px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg text-lg font-semibold hover:shadow-2xl hover:shadow-cyan-500/50 transition-all flex items-center space-x-2"
                 >
                   <span>Get Started</span>
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <Link
-                  to="/login"
-                  className="px-8 py-4 border-2 border-cyan-400/30 text-white rounded-lg text-lg font-semibold hover:border-cyan-400 hover:bg-cyan-400/10 transition-all"
-                >
-                  Explore Projects
                 </Link>
               </div>
             </div>
@@ -89,8 +83,8 @@ const LandingPage = () => {
               />
               <FeatureCard
                 icon={<Code2 className="w-8 h-8" />}
-                title="Multi-language Support"
-                description="Support for Python, JavaScript, TypeScript, Java, Go, Rust, and more."
+                title="Project Templates"
+                description="Start with ready-made coding workspaces so students can build projects without wasting time on setup."
                 delay="0.2s"
               />
             </div>

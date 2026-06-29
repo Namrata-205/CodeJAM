@@ -1,410 +1,555 @@
 # CodeJam - Browser-Based Code Playground
 
-A full-stack collaborative code playground that lets users write, execute, and share code snippets online. Built with FastAPI, React, PostgreSQL, and Redis, CodeJam provides a zero-setup environment for learning, experimentation, and collaboration.
+CodeJam is a full-stack collaborative code playground built especially for students who want to create projects quickly without spending too much time on setup. With AI tools, students can generate code and ideas faster than ever, but installing runtimes, configuring environments, and connecting project files still takes time. CodeJam reduces that friction by letting users write, execute, save, and share code projects directly from the browser.
+
+It uses a FastAPI backend, a React/Vite frontend, PostgreSQL for data, and Redis/RQ for background code execution jobs.
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-green.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18-blue.svg)](https://react.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-red.svg)](https://redis.io/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 🎯 Project Overview
+## Project Overview
 
-**Problem**: Developers need quick, zero-setup environments to test code snippets, collaborate on solutions, and share working examples without local installations or complex configurations.
+Students often have good ideas but lose time setting up tools, installing packages, creating folders, configuring editors, and debugging environment issues before they can actually build. CodeJam gives them a ready-to-use browser-based workspace where they can create projects, test code, manage files, and collaborate.
 
-**Solution**: CodeJam provides a browser-based IDE with:
-- **Multi-language support** (Python, JavaScript, Go, Rust, C/C++, Java, TypeScript)
-- **Real-time code execution** with sandboxed security
-- **Collaboration features** (viewer/editor roles, invitations)
-- **Project sharing** via public links or embedded snippets
-- **File management** within projects for complex multi-file codebases
+The goal is simple: help students move from idea to working project faster.
 
----
+This is useful for:
 
-## ✨ Key Features
+- Students learning programming for the first time
+- Hackathon teams building quick prototypes
+- AI-assisted project creation
+- Classroom demos and assignments
+- Sharing working code examples without asking others to install anything locally
 
-### 1. **User Management & Authentication**
-- JWT-based authentication with secure password hashing (bcrypt)
-- Session management with configurable token expiration
-- OAuth support ready (Google/GitHub providers)
+## Features
 
-### 2. **Project Management**
-- Create, update, and organize code projects
-- Soft-delete for data recovery
-- Public/private visibility controls
-- Rich metadata (name, description, language, timestamps)
+- Multi-language project support
+- User registration and JWT-based login
+- Project create, update, delete, share, and invite flows
+- Owner/editor/viewer collaboration roles
+- File and folder management inside projects
+- Sandboxed backend code execution
+- Redis/RQ background job queue
+- FastAPI Swagger docs for direct backend testing
+- React/Vite frontend with Monaco editor-style code editing
+- Token-based publishing flow for GitHub and Vercel
 
-### 3. **Collaboration**
-- Invite collaborators by email with granular roles:
-  - **Owner**: Full control (delete, invite, manage settings)
-  - **Editor**: Can modify code
-  - **Viewer**: Read-only access
-- Invitation acceptance workflow
-- Role modification by project owners
+## Tech Stack
 
-### 4. **Secure Code Execution**
-- Sandboxed subprocess execution with strict timeouts
-- CPU and memory constraints (configurable)
-- Multi-language runtime support
-- Async job queue (Redis + RQ) for non-blocking execution
-- Real-time job status polling
+| Layer | Tools |
+| --- | --- |
+| Backend | FastAPI, SQLAlchemy, Alembic, Pydantic |
+| Frontend | React, Vite, Tailwind CSS, Monaco Editor |
+| Database | PostgreSQL |
+| Queue | Redis, RQ |
+| Testing | pytest, pytest-asyncio, httpx |
 
-### 5. **File System**
-- Hierarchical file structure within projects
-- Create, rename, update, delete files
-- Parent-child relationships for folders
-- Language-specific syntax highlighting metadata
+## Architecture
 
-### 6. **Public Sharing**
-- Generate unique share links for projects
-- View shared projects without authentication
-- Revoke share links to make projects private again
-- Public project discovery feed
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────┐      ┌──────────────┐      ┌─────────────┐
-│   React     │─────▶│   FastAPI    │─────▶│ PostgreSQL  │
-│  Frontend   │◀─────│   Backend    │◀─────│  (async)    │
-└─────────────┘      └──────────────┘      └─────────────┘
-                            │
-                            ▼
-                     ┌──────────────┐
-                     │    Redis     │
-                     │   + RQ       │
-                     │  (Job Queue) │
-                     └──────────────┘
-                            │
-                            ▼
-                     ┌──────────────┐
-                     │   RQ Worker  │
-                     │ (Code Runner)│
-                     └──────────────┘
+```text
+React Frontend
+      |
+      v
+FastAPI Backend
+      |
+      +----> PostgreSQL Database
+      |
+      +----> Redis Queue ----> RQ Worker / Code Runner
 ```
 
-### Tech Stack
+## Prerequisites
 
-**Backend**
-- **FastAPI** - Modern async Python web framework
-- **SQLAlchemy 2.0** - Async ORM with PostgreSQL
-- **Alembic** - Database migrations
-- **Pydantic v2** - Request/response validation
-- **Redis + RQ** - Async task queue for code execution
-- **python-jose** - JWT token handling
-- **passlib** - Password hashing
-
-**Database**
-- **PostgreSQL 16** - Primary data store (async via asyncpg)
-- **Redis 7** - Job queue and caching
-
-**Testing**
-- **pytest + pytest-asyncio** - Async test suite
-- **httpx** - Async HTTP client for testing
-- **SQLite (aiosqlite)** - In-memory test database
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
+Install these before running the project:
 
 - Python 3.11+
+- Node.js 18+
+- npm
 - PostgreSQL 16+
 - Redis 7+
-- (Optional) Docker & Docker Compose
+- Docker Desktop, optional but useful
 
-### Installation
+## Backend Setup
 
-#### 1. Clone the Repository
+From the project root:
+
 ```bash
-git clone https://github.com/yourusername/codejam.git
-cd codejam
+python -m venv venv
 ```
 
-#### 2. Set Up Environment
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+Activate the virtual environment:
 
-# Install dependencies
+```bash
+# Windows PowerShell
+.\venv\Scripts\Activate.ps1
+```
+
+```bash
+# macOS/Linux
+source venv/bin/activate
+```
+
+Install Python dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
-#### 3. Configure Environment Variables
+Create your environment file:
+
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and fill in:
+Example backend environment:
+
 ```env
-# Generate a secure secret key
-SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
-
-# Database connection
+SECRET_KEY=replace-this-with-a-secure-secret-key
 DATABASE_URL=postgresql+asyncpg://codejam:password@localhost:5432/codejam
-
-# Redis connection
 REDIS_HOST=localhost
 REDIS_PORT=6379
-
-# Code execution timeout (seconds)
 EXECUTION_TIMEOUT=10
 ```
 
-#### 4. Start PostgreSQL and Redis
+Run database migrations:
 
-**Option A: Docker**
-```bash
-docker run -d --name codejam-postgres \
-  -e POSTGRES_USER=codejam \
-  -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_DB=codejam \
-  -p 5432:5432 postgres:16
-
-docker run -d --name codejam-redis \
-  -p 6379:6379 redis:7
-```
-
-**Option B: Local Installation**
-```bash
-# Install PostgreSQL and Redis via your package manager
-# Ubuntu/Debian
-sudo apt install postgresql redis-server
-
-# macOS
-brew install postgresql@16 redis
-```
-
-#### 5. Run Database Migrations
 ```bash
 alembic upgrade head
 ```
 
-#### 6. Start the Application
+Start the FastAPI backend:
 
-**Terminal 1: API Server**
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-**Terminal 2: RQ Worker** (for code execution)
+The backend will run at:
+
+```text
+http://localhost:8000
+```
+
+## Test the Backend Separately
+
+Yes, the backend can be tested without running the frontend.
+
+Start only the backend:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+Then open the FastAPI Swagger UI:
+
+```text
+http://localhost:8000/docs
+```
+
+You can also use the ReDoc page:
+
+```text
+http://localhost:8000/redoc
+```
+
+Useful backend checks:
+
+```bash
+# Root API check
+curl http://localhost:8000/
+```
+
+```bash
+# Run automated backend tests
+pytest
+```
+
+In `/docs`, you can test endpoints such as authentication, projects, files, collaboration, runtimes, and code execution directly from the browser.
+
+## Frontend Setup
+
+Open a new terminal and go to the frontend folder:
+
+```bash
+cd frontend
+```
+
+Install frontend dependencies:
+
+```bash
+npm install
+```
+
+Create the frontend environment file:
+
+```bash
+cp .env.example .env
+```
+
+Example frontend environment:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+For the deployed frontend, set this environment variable in Vercel to your deployed backend API URL:
+
+```env
+VITE_API_URL=https://your-backend-url.example.com
+```
+
+Start the frontend:
+
+```bash
+npm run dev
+```
+
+The frontend will usually run at:
+
+```text
+http://localhost:5173
+```
+
+## Test the Frontend Separately
+
+Yes, the frontend can also be tested separately.
+
+For UI-only testing, start the frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open:
+
+```text
+http://localhost:5173
+```
+
+Important note: pages that call the API, such as login, register, dashboard, projects, files, and code execution, need the backend running at `VITE_API_URL`.
+
+For the full frontend experience, run both:
+
+```bash
+# Terminal 1 - backend
+uvicorn app.main:app --reload --port 8000
+```
+
+```bash
+# Terminal 2 - frontend
+cd frontend
+npm run dev
+```
+
+You can also test the production frontend build:
+
+```bash
+cd frontend
+npm run build
+npm run preview
+```
+
+## Deploy This Frontend on Vercel
+
+Live frontend:
+
+```text
+https://codejam-collab.vercel.app/
+```
+
+This repository keeps the React/Vite app inside `frontend/`. The root `vercel.json` is configured so Vercel installs and builds from that folder:
+
+```json
+{
+  "installCommand": "cd frontend && npm install",
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/dist"
+}
+```
+
+If configuring Vercel manually in the dashboard, use:
+
+- Root Directory: project root, or set it directly to `frontend`
+- Install Command: `cd frontend && npm install`
+- Build Command: `cd frontend && npm run build`
+- Output Directory: `frontend/dist`
+
+If the Root Directory is set to `frontend`, then use the simpler Vercel settings:
+
+- Install Command: `npm install`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+
+After deploying the frontend, configure the backend environment with the frontend URL:
+
+```env
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173,https://codejam-collab.vercel.app
+FRONTEND_URL=https://codejam-collab.vercel.app
+```
+
+Also configure the Vercel frontend environment with the backend URL:
+
+```env
+VITE_API_URL=https://your-backend-url.example.com
+```
+
+## Run the Code Execution Worker
+
+Some code execution features depend on Redis and the RQ worker.
+
+Start Redis first, then run:
+
 ```bash
 rq worker code_execution
 ```
 
-API now available at: **http://localhost:8000**  
-Swagger docs: **http://localhost:8000/docs**
+If the worker is not running, the app may still load, but code execution jobs may not complete.
 
----
+## Publishing Integrations
 
-## 🧪 Testing
+CodeJam includes a token-based publishing MVP so students can publish their work without leaving the platform. Users can paste a GitHub or Vercel token once, choose to save it, and CodeJam will encrypt it in the backend database so they do not have to enter it again and again. If a saved token expires, students can paste a new token in the same Publish modal and keep the save option checked; CodeJam will replace the old saved token.
 
-Run the full test suite:
-```bash
-pytest tests/ -v
+Important: tokens work like passwords. Students should never share them in chat, screenshots, GitHub commits, or public project files.
+
+### How to Generate a GitHub Token
+
+Use this for pushing CodeJam projects to GitHub.
+
+1. Log in to GitHub.
+2. Open this page:
+
+```text
+https://github.com/settings/tokens
 ```
 
-With coverage report:
-```bash
-pytest tests/ --cov=app --cov-report=term-missing
+3. Choose **Fine-grained tokens** if available.
+4. Click **Generate new token**.
+5. Give it a simple name, for example `CodeJam`.
+6. Choose an expiration date, such as 30 or 90 days.
+7. For repository access:
+   - Choose selected repositories if pushing to an existing repo.
+   - Or allow repository creation if the account settings show that option.
+8. Give the token repository contents permission:
+   - **Contents: Read and write**
+   - **Metadata: Read-only**
+9. Generate the token and copy it.
+10. Paste it into CodeJam's **Publish > GitHub** tab and keep **Save this GitHub token for next time** checked.
+
+If the token is lost, GitHub will not show it again. Generate a new one.
+
+### How to Generate a Vercel Token
+
+Use this for deploying frontend projects to Vercel.
+
+1. Log in to Vercel.
+2. Open this page:
+
+```text
+https://vercel.com/account/settings/tokens
 ```
 
-Run specific test modules:
-```bash
-pytest tests/test_auth.py -v
-pytest tests/test_permissions.py -v
+3. Click **Create Token**.
+4. Give it a simple name, for example `CodeJam`.
+5. Choose an expiration date.
+6. Copy the token.
+7. Paste it into CodeJam's **Publish > Vercel** tab and keep **Save this Vercel token for next time** checked.
+
+If deploying under a Vercel team, students may also need the Team ID. For personal accounts, the Team ID can usually be left empty.
+
+### Push Project to GitHub
+
+Yes, users can push code directly from CodeJam to GitHub.
+
+Possible flow:
+
+```text
+User enters GitHub token and repository details
+      |
+      v
+User selects a CodeJam project
+      |
+      v
+CodeJam creates or updates a GitHub repository
+      |
+      v
+Project files are committed and pushed
 ```
 
----
+The current MVP supports:
 
-## 📡 API Endpoints
+- Pushing project files to a GitHub repository
+- Creating the repository if requested
+- Public or private repository creation
+- Custom branch and commit message
+- Optional encrypted token storage
 
-### Authentication
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/auth/login` | Obtain JWT access token |
-| POST | `/users/` | Register new account |
-| GET | `/users/me` | Get current user profile |
+Backend endpoint:
 
-### Projects
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/projects/` | List owned projects |
-| POST | `/projects/` | Create project |
-| GET | `/projects/public` | Browse public projects |
-| GET | `/projects/{id}` | Get project details |
-| PATCH | `/projects/{id}` | Update metadata |
-| DELETE | `/projects/{id}` | Soft-delete project |
-| PUT | `/projects/{id}/code` | Update source code |
-| POST | `/projects/{id}/share` | Generate share link |
-| DELETE | `/projects/{id}/share` | Revoke share link |
-| GET | `/projects/share/{share_id}` | View via share link |
+```text
+POST /projects/{project_id}/github/push
+```
 
-### Collaboration
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/projects/{id}/collaborators` | Invite user |
-| GET | `/projects/{id}/collaborators` | List collaborators |
-| POST | `/projects/{id}/collaborators/accept` | Accept invitation |
-| PATCH | `/projects/{id}/collaborators/{uid}` | Change role |
-| DELETE | `/projects/{id}/collaborators/{uid}` | Remove collaborator |
+For a production version, GitHub OAuth would be better than asking users to paste tokens manually.
 
-### Files
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/projects/{id}/files` | Create file |
-| GET | `/projects/{id}/files` | List files |
-| GET | `/projects/{id}/files/{fid}` | Get file |
-| PUT | `/projects/{id}/files/{fid}` | Update content |
-| PATCH | `/projects/{id}/files/{fid}` | Rename file |
-| DELETE | `/projects/{id}/files/{fid}` | Delete file |
+### Deploy Project to Vercel
 
-### Code Execution
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/execute/` | Submit code job |
-| GET | `/execute/{job_id}` | Poll job status |
+Yes, users can deploy supported frontend projects directly to Vercel.
 
----
+Possible flow:
 
-## 🔒 Security Features
+```text
+User enters Vercel token and project settings
+      |
+      v
+User selects a frontend project
+      |
+      v
+CodeJam sends project files/configuration to Vercel
+      |
+      v
+Vercel returns a live deployment URL
+```
 
-### Authentication & Authorization
-- ✅ JWT-based stateless authentication
-- ✅ Password hashing with bcrypt (72-byte limit enforced)
-- ✅ Role-based access control (owner/editor/viewer)
-- ✅ Request-level permission validation
+The current MVP supports:
 
-### Code Execution Sandbox
-- ✅ Subprocess isolation (separate process per execution)
-- ✅ Hard timeout enforcement (configurable, default 10s)
-- ✅ No network access (worker runs in isolated container)
-- ✅ Temporary file cleanup after execution
-- ✅ Stdout/stderr capture with size limits
+- Sending CodeJam project files to Vercel
+- Setting a Vercel project name
+- Optional team ID
+- Framework hint, such as `vite`
+- Returning the live deployment URL
 
-### Data Protection
-- ✅ SQL injection prevention (parameterized queries via SQLAlchemy)
-- ✅ Soft-delete for data recovery
-- ✅ Input validation on all endpoints (Pydantic schemas)
-- ✅ CORS configuration for production deployment
+Backend endpoint:
 
----
+```text
+POST /projects/{project_id}/vercel/deploy
+```
 
-## 📊 Database Schema
+This feature is especially useful for students because they can go from AI-generated code to a shareable GitHub repository or live Vercel URL from one place.
 
-```sql
+## Docker Helpers
+
+You can start PostgreSQL and Redis manually with Docker:
+
+```bash
+docker run -d --name codejam-postgres `
+  -e POSTGRES_USER=codejam `
+  -e POSTGRES_PASSWORD=password `
+  -e POSTGRES_DB=codejam `
+  -p 5432:5432 postgres:16
+```
+
+```bash
+docker run -d --name codejam-redis `
+  -p 6379:6379 redis:7
+```
+
+For macOS/Linux shells, replace the PowerShell backtick line continuations with backslashes.
+
+## Common API Endpoints
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/` | API health/root check |
+| `POST` | `/auth/register` | Register a user |
+| `POST` | `/auth/login` | Log in |
+| `GET` | `/projects` | List projects |
+| `POST` | `/projects` | Create project |
+| `GET` | `/projects/{id}` | Get project |
+| `PUT` | `/projects/{id}` | Update project |
+| `DELETE` | `/projects/{id}` | Delete project |
+| `GET` | `/projects/{id}/files` | List project files |
+| `POST` | `/projects/{id}/files` | Create file |
+| `POST` | `/execute/` | Submit code execution job |
+| `GET` | `/execute/{job_id}` | Check execution status |
+
+For the most accurate and current endpoint list, use:
+
+```text
+http://localhost:8000/docs
+```
+
+## Syntax Highlighting in This README
+
+Code examples are written with fenced code blocks and language labels, like this:
+
+````markdown
+```bash
+npm run dev
+```
+````
+
+That makes VS Code, GitHub, and most Markdown preview tools show color-coded commands instead of plain text.
+
+## Database Schema Summary
+
+```text
 users
-├── id (UUID, PK)
-├── email (unique)
-├── hashed_password
-├── provider (local|google|github)
-└── timestamps
+|-- id
+|-- email
+|-- hashed_password
+|-- provider
+`-- timestamps
 
 projects
-├── id (UUID, PK)
-├── user_id (FK → users)
-├── name, description, language
-├── source_code (text)
-├── is_public, is_deleted
-├── share_id (UUID, unique)
-└── timestamps
+|-- id
+|-- user_id
+|-- name
+|-- description
+|-- language
+|-- source_code
+|-- is_public
+|-- is_deleted
+|-- share_id
+`-- timestamps
 
 project_collaborators
-├── id (UUID, PK)
-├── project_id (FK → projects)
-├── user_id (FK → users)
-├── role (viewer|editor)
-├── accepted (boolean)
-├── invited_by (FK → users)
-└── created_at
+|-- id
+|-- project_id
+|-- user_id
+|-- role
+|-- accepted
+|-- invited_by
+`-- created_at
 
 files
-├── id (UUID, PK)
-├── project_id (FK → projects)
-├── parent_id (FK → files, nullable)
-├── name, language, content
-└── timestamps
+|-- id
+|-- project_id
+|-- parent_id
+|-- name
+|-- language
+|-- content
+`-- timestamps
 ```
 
----
+## Security Notes
 
-## 🎓 Learning Outcomes
+- Passwords are hashed before storage.
+- Authentication uses JWT tokens.
+- Project access is protected by role-based permissions.
+- API input is validated with Pydantic schemas.
+- Code execution runs through a controlled backend execution flow with timeouts.
+- Production deployments should use strong secrets, restricted CORS origins, and managed database credentials.
+
+## Learning Outcomes
 
 This project demonstrates:
 
-1. **Async Python & FastAPI**
-   - Full async/await throughout the stack
-   - Async SQLAlchemy ORM patterns
-   - Background job processing with RQ
+- Full-stack React + FastAPI development
+- REST API design with OpenAPI documentation
+- Async Python backend patterns
+- SQLAlchemy models and Alembic migrations
+- Authentication and authorization
+- Background jobs with Redis/RQ
+- Browser-based code editing with Monaco Editor
 
-2. **REST API Design**
-   - Resource-based routing
-   - Proper HTTP status codes
-   - OpenAPI/Swagger documentation
+## License
 
-3. **Security Engineering**
-   - Authentication & authorization
-   - Code execution sandboxing
-   - Input validation & sanitization
-
-4. **Database Design**
-   - Normalized schema with relationships
-   - Soft-delete patterns
-   - Migration management with Alembic
-
-5. **Testing**
-   - Comprehensive test coverage
-   - Async test fixtures
-   - Isolated test environments
-
-6. **Deployment-Ready**
-   - Environment-based configuration
-   - Docker containerization ready
-   - Production security practices
+MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-## 🛣️ Roadmap
-
-- [ ] WebSocket support for real-time collaboration
-- [ ] Frontend React application
-- [ ] Code version history & diffs
-- [ ] Syntax highlighting in API responses
-- [ ] Rate limiting per user
-- [ ] Email notifications for invitations
-- [ ] OAuth integration (Google/GitHub)
-- [ ] Export projects as GitHub gists
-- [ ] Embedded code snippets (iframe support)
-- [ ] Admin dashboard
-
----
-
-## 📝 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
----
-
-## 👤 Author
-
-**Your Name**
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [yourprofile](https://linkedin.com/in/yourprofile)
-- Portfolio: [yourwebsite.com](https://yourwebsite.com)
-
----
-
-## 🙏 Acknowledgments
-
-- FastAPI framework and documentation
-- SQLAlchemy async patterns
-- RQ (Redis Queue) for background jobs
-- PostgreSQL community
-
----
-
-**Built with ❤️ using FastAPI, PostgreSQL, and Redis**
+Built with FastAPI, React, PostgreSQL, Redis, and a healthy amount of debugging patience.

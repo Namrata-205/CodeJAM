@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, collaboration, execute, files, projects, runtimes, users
+from app.api import auth, collaboration, execute, files, integrations, projects, publishing, runtimes, users
 from app.config import AUTO_CREATE_SQLITE_TABLES, CORS_ORIGINS, DATABASE_URL
 
 
@@ -41,6 +41,8 @@ app.include_router(collaboration.router)
 app.include_router(files.router)
 app.include_router(execute.router)
 app.include_router(runtimes.router)
+app.include_router(publishing.router)
+app.include_router(integrations.router)
 
 
 @app.get("/")

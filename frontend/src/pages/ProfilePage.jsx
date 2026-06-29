@@ -6,7 +6,7 @@ import Navbar from '../components/Navbar';
 import { useNavigate } from 'react-router-dom';
 
 const ProfilePage = () => {
-  const { user, updateProfile } = useAuth();
+  const { user } = useAuth();
   const { projects } = useProjects();
   const navigate = useNavigate();
   
@@ -14,6 +14,8 @@ const ProfilePage = () => {
   const [newPassword, setNewPassword] = useState('');
   const [message, setMessage] = useState('');
 
+  const displayName = user?.email ? user.email.split('@')[0] : 'Student';
+  const displayInitial = displayName.charAt(0).toUpperCase();
   const recentProjects = projects.slice(0, 3);
 
   const handlePasswordChange = (e) => {
@@ -42,11 +44,11 @@ const ProfilePage = () => {
         <div className="glass rounded-2xl p-8 mb-8">
           <div className="flex items-center space-x-6">
             <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center text-3xl font-bold text-white">
-              {user?.name?.charAt(0) || 'J'}
+              {displayInitial}
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white mb-1 font-outfit">{user?.name || 'Jane Developer'}</h1>
-              <p className="text-gray-400">{user?.email || 'dev@codejam.io'}</p>
+              <h1 className="text-3xl font-bold text-white mb-1 font-outfit">{displayName}</h1>
+              <p className="text-gray-400">{user?.email || 'No email available'}</p>
               <div className="flex items-center space-x-2 mt-2">
                 <div className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-sm font-semibold">
                   {projects.length} projects

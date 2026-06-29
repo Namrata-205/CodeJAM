@@ -4,11 +4,13 @@ import {
   Play, Save, Share2, FilePlus, FolderPlus,
   Trash2, FileText, Folder, FolderOpen,
   ChevronRight, ChevronDown, X, Loader2,
-  CheckCircle2, AlertCircle, Square, ExternalLink, CircleDot
+  CheckCircle2, AlertCircle, Square, ExternalLink, CircleDot,
+  Rocket
 } from 'lucide-react';
 import { useProjects } from '../contexts/ProjectContext';
-import { execute as executeApi, runtimes as runtimesApi } from '../api';
+import { execute as executeApi, projects as projectsApi, runtimes as runtimesApi } from '../api';
 import Navbar from '../components/Navbar';
+import PublishModal from '../components/PublishModal';
 import ShareModal from '../components/ShareModal';
 
 // ── Language → backend key mapping ───────────────────────────────────────────
@@ -211,6 +213,7 @@ const Editor = () => {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [showShare, setShowShare] = useState(false);
+  const [showPublish, setShowPublish] = useState(false);
   const [preview, setPreview] = useState(null);
   const [startingPreview, setStartingPreview] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(260);
@@ -348,6 +351,16 @@ const Editor = () => {
   };
 
   const handleSave = () => saveActiveFile(true);
+
+  const publishToGitHub = async (data) => {
+    await saveActiveFile(false);
+    return projectsApi.pushToGitHub(projectId, data);
+  };
+
+  const deployToVercel = async (data) => {
+    await saveActiveFile(false);
+    return projectsApi.deployToVercel(projectId, data);
+  };
 
   // Ctrl/Cmd+S shortcut
   useEffect(() => {
@@ -503,6 +516,13 @@ const Editor = () => {
             </a>
           )}
           <button
+            onClick={() => setShowPublish(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors"
+          >
+            <Rocket className="w-4 h-4" />
+            Publish
+          </button>
+          <button
             onClick={() => setShowShare(true)}
             className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm transition-colors"
           >
@@ -638,6 +658,15 @@ const Editor = () => {
       </div>
 
       {showShare && <ShareModal project={project} onClose={() => setShowShare(false)} />}
+
+      {showPublish && (
+        <PublishModal
+          project={project}
+          onClose={() => setShowPublish(false)}
+          onPublishGitHub={publishToGitHub}
+          onDeployVercel={deployToVercel}
+        />
+      )}
 
       {dialog && (
         <NewItemDialog

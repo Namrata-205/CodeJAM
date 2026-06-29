@@ -8,3 +8,4 @@ from app.models.user import User                          # noqa: F401
 from app.models.projects import Project                   # noqa: F401
 from app.models.collaborators import ProjectCollaborator  # noqa: F401
 from app.models.files import File                         # noqa: F401
+from app.models.integration_tokens import IntegrationToken  # noqa: F401

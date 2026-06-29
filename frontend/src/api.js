@@ -65,9 +65,18 @@ export const projects = {
   generateShareLink: (id) => request(`/projects/${id}/share`, { method: 'POST' }),
   revokeShareLink: (id) => request(`/projects/${id}/share`, { method: 'DELETE' }),
   getByShareId: (shareId) => request(`/projects/share/${shareId}`),
+  pushToGitHub: (id, data) => request(`/projects/${id}/github/push`, { method: 'POST', body: data }),
+  deployToVercel: (id, data) => request(`/projects/${id}/vercel/deploy`, { method: 'POST', body: data }),
 };
 
 // ── Files ─────────────────────────────────────────────────────────────────────
+
+export const integrations = {
+  status: () => request('/integrations/status'),
+  saveToken: (provider, token) =>
+    request(`/integrations/${provider}`, { method: 'PUT', body: { provider, token } }),
+  deleteToken: (provider) => request(`/integrations/${provider}`, { method: 'DELETE' }),
+};
 
 export const files = {
   list: (projectId) => request(`/projects/${projectId}/files`),
