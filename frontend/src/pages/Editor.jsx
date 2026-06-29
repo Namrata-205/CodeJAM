@@ -20,6 +20,8 @@ const LANG_KEY = {
   Java: 'java', Go: 'go', Rust: 'rust', 'C++': 'cpp', C: 'c',
 };
 
+const ENABLE_DOCKER_PREVIEW = import.meta.env.VITE_ENABLE_DOCKER_PREVIEW === 'true';
+
 const EXTENSION_LANGUAGE = {
   py: 'python',
   js: 'javascript',
@@ -69,6 +71,90 @@ function buildTree(flatFiles) {
     }
   });
   return roots;
+}
+
+function pathForFile(file, byId) {
+  const parts = [file.name];
+  let parentId = file.parent_id;
+  const visited = new Set([file.id]);
+
+  while (parentId && byId[parentId] && !visited.has(parentId)) {
+    const parent = byId[parentId];
+    visited.add(parentId);
+    parts.unshift(parent.name);
+    parentId = parent.parent_id;
+  }
+
+  return parts.join('/');
+}
+
+function stripImports(source) {
+  return source
+    .replace(/import\s+['"][^'"]+\.css['"];?\s*/g, '')
+    .replace(/import\s+.*?from\s+['"]react['"];?\s*/g, '')
+    .replace(/import\s+\{\s*createRoot\s*\}\s+from\s+['"]react-dom\/client['"];?\s*/g, '')
+    .replace(/import\s+.*?from\s+['"]react-dom\/client['"];?\s*/g, '')
+    .replace(/import\s+.*?from\s+['"][^'"]+['"];?\s*/g, '');
+}
+
+function appComponentCode(source) {
+  let code = stripImports(source || 'export default function App() { return <h1>Hello from CodeJam</h1>; }');
+  code = code
+    .replace(/export\s+default\s+function\s+App\s*\(/, 'function App(')
+    .replace(/export\s+default\s+function\s+([A-Za-z_$][\w$]*)\s*\(/, 'function $1(')
+    .replace(/export\s+default\s+App\s*;?/, '')
+    .replace(/export\s+default\s+([A-Za-z_$][\w$]*)\s*;?/, 'const App = $1;');
+
+  if (!/function\s+App\s*\(|const\s+App\s*=|class\s+App\s+extends/.test(code)) {
+    code += '\nfunction App() { return <div>Could not find an App component. Export a default App component to preview.</div>; }';
+  }
+
+  return code;
+}
+
+function buildFrontendPreviewHtml(files) {
+  const byId = {};
+  files.forEach((file) => { byId[file.id] = file; });
+
+  const filesByPath = {};
+  files.forEach((file) => {
+    if (file.language !== '__folder__') filesByPath[pathForFile(file, byId)] = file;
+  });
+
+  const appFile =
+    filesByPath['frontend/src/App.jsx'] ||
+    filesByPath['frontend/src/App.js'] ||
+    filesByPath['src/App.jsx'] ||
+    filesByPath['src/App.js'] ||
+    files.find((file) => ['App.jsx', 'App.js'].includes(file.name));
+  const cssFile =
+    filesByPath['frontend/src/styles.css'] ||
+    filesByPath['frontend/src/App.css'] ||
+    filesByPath['src/styles.css'] ||
+    filesByPath['src/App.css'] ||
+    files.find((file) => ['styles.css', 'App.css'].includes(file.name));
+
+  const css = cssFile?.content || 'body { margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: white; } #root { min-height: 100vh; }';
+  const appCode = appComponentCode(appFile?.content);
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>${css.replace(/<\/style/gi, '<\\/style')}</style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"><\/script>
+    <script type="text/babel" data-presets="env,react" data-type="module">
+      import React from 'https://esm.sh/react@18';
+      import { createRoot } from 'https://esm.sh/react-dom@18/client';
+      ${appCode.replace(/<\/script/gi, '<\\/script')}
+      createRoot(document.getElementById('root')).render(<App />);
+    <\/script>
+  </body>
+</html>`;
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -252,6 +338,7 @@ const Editor = () => {
   const [showShare, setShowShare] = useState(false);
   const [showPublish, setShowPublish] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [frontendPreviewHtml, setFrontendPreviewHtml] = useState('');
   const [startingPreview, setStartingPreview] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [outputHeight, setOutputHeight] = useState(176);
@@ -308,7 +395,8 @@ const Editor = () => {
     setRunStatus('queued');
     setOutput('');
 
-    const langKey = LANG_KEY[project.language] || project.language.toLowerCase();
+    const detectedLanguage = editorLanguageFor(activeFile, project);
+    const langKey = LANG_KEY[project.language] || detectedLanguage || project.language.toLowerCase();
 
     try {
       const result = await executeApi.run(langKey, code, (status) => {
@@ -327,6 +415,17 @@ const Editor = () => {
       setRunStatus('failed');
       setOutput(`Error: ${e.message}`);
     }
+  };
+
+  const handleFrontendPreview = async () => {
+    if (project.language !== 'react-fastapi') return;
+    const filesForPreview = flatFiles.map((file) =>
+      activeFile?.id === file.id ? { ...file, content: code } : file
+    );
+    setFrontendPreviewHtml(buildFrontendPreviewHtml(filesForPreview));
+    setPreview(null);
+    setOutput('');
+    showToast('Frontend preview updated');
   };
 
   const previewUrlFor = (runtime, mode = 'full') => {
@@ -359,7 +458,10 @@ const Editor = () => {
       showToast(mode === 'backend' ? 'FastAPI docs opened in a new tab' : 'Preview opened in a new tab');
     } catch (e) {
       previewWindow?.close();
-      showToast(e.message, 'error');
+      const message = e.message?.includes('Docker is not installed')
+        ? 'Workspace preview needs Docker on the backend server. This deployed server cannot run previews yet, but files can still be edited, saved, shared, and published.'
+        : e.message;
+      showToast(message, 'error');
     } finally {
       setStartingPreview(false);
     }
@@ -564,31 +666,43 @@ const Editor = () => {
           {project.language === 'react-fastapi' && (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => handlePreview('full')}
-                disabled={startingPreview}
-                className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-                title="Run the complete React + FastAPI workspace"
+                onClick={handleFrontendPreview}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg text-sm font-semibold transition-colors hover:shadow-lg hover:shadow-cyan-500/30"
+                title="Preview the React frontend in the browser without Docker"
               >
-                {startingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                {startingPreview ? 'Starting...' : 'Preview full app'}
+                <Play className="w-4 h-4" />
+                Preview frontend
               </button>
               <button
-                onClick={() => handlePreview('frontend')}
-                disabled={startingPreview}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
-                title="Open the React frontend"
+                onClick={handleRun}
+                disabled={isRunning || !activeFile || activeFile.language === '__folder__'}
+                className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                title="Run the selected file using the normal code runner"
               >
-                Frontend
+                {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                {isRunning ? runStatus : 'Run selected file'}
               </button>
-              <button
-                onClick={() => handlePreview('backend')}
-                disabled={startingPreview}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
-                title="Open FastAPI Swagger docs for backend testing"
-              >
-                Backend docs
-              </button>
-              {preview && (
+              {ENABLE_DOCKER_PREVIEW && (
+                <>
+                  <button
+                    onClick={() => handlePreview('full')}
+                    disabled={startingPreview}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
+                    title="Docker-only: run the complete React + FastAPI workspace"
+                  >
+                    {startingPreview ? 'Starting...' : 'Docker full app'}
+                  </button>
+                  <button
+                    onClick={() => handlePreview('backend')}
+                    disabled={startingPreview}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
+                    title="Docker-only: open FastAPI Swagger docs for backend testing"
+                  >
+                    Backend docs
+                  </button>
+                </>
+              )}
+              {ENABLE_DOCKER_PREVIEW && preview && (
                 <button
                   onClick={stopPreview}
                   className="flex items-center gap-2 px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-semibold transition-colors"
@@ -599,7 +713,7 @@ const Editor = () => {
               )}
             </div>
           )}
-          {preview && (
+          {ENABLE_DOCKER_PREVIEW && preview && (
             <a
               href={preview.preview_url}
               target="_blank"
@@ -696,7 +810,7 @@ const Editor = () => {
           {activeFile && activeFile.language !== '__folder__' && (
             <div className="px-4 py-1.5 bg-slate-950 border-b border-slate-800 text-xs font-mono text-gray-400 flex items-center justify-between">
               <span>{activeFile.name}</span>
-              {preview && (
+              {(preview || frontendPreviewHtml) && (
                 <span className="inline-flex items-center gap-1 text-cyan-300">
                   <CircleDot className="w-3 h-3" /> Preview active
                 </span>
@@ -745,7 +859,25 @@ const Editor = () => {
                 </button>
               )}
             </div>
-            {preview ? (
+            {frontendPreviewHtml ? (
+              <div className="flex-1 flex flex-col min-h-0">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 text-xs text-gray-400">
+                  <span>Frontend browser preview</span>
+                  <button
+                    onClick={() => setFrontendPreviewHtml('')}
+                    className="text-gray-500 hover:text-gray-300"
+                  >
+                    Close preview
+                  </button>
+                </div>
+                <iframe
+                  title="CodeJam frontend preview"
+                  srcDoc={frontendPreviewHtml}
+                  sandbox="allow-scripts allow-modals"
+                  className="flex-1 w-full bg-white"
+                />
+              </div>
+            ) : preview ? (
               <div className="flex-1 overflow-y-auto px-4 py-3 text-sm text-gray-300">
                 <div className="flex items-center gap-2 text-cyan-300">
                   <CircleDot className="w-3.5 h-3.5" />
@@ -763,7 +895,7 @@ const Editor = () => {
               </div>
             ) : (
               <pre className="flex-1 overflow-y-auto px-4 py-3 text-sm font-mono text-green-400 whitespace-pre-wrap">
-                {output || 'Run an individual file to see output here, or preview the complete workspace.'}
+                {output || 'Run an individual file to see output here, or preview the React frontend in the browser.'}
               </pre>
             )}
           </div>
