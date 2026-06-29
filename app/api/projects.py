@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.api.dependencies import get_current_user
-from app.api.permissions import require_edit_access, require_owner
+from app.api.permissions import get_project_role, require_edit_access, require_owner
 from app.db import get_db
 from app.models.collaborators import ProjectCollaborator
 from app.models.files import File
@@ -33,6 +33,76 @@ from app.schemas.projects import (
 from app.workspace_templates import get_template_files
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
+
+
+def _project_response(project: Project, access_role: str) -> ProjectResponse:
+    return ProjectResponse.model_validate(project).model_copy(
+        update={"access_role": access_role}
+    )
+
+
+async def _copy_project_files(
+    source_project_id: UUID,
+    target_project_id: UUID,
+    db: AsyncSession,
+) -> None:
+    result = await db.execute(
+        select(File).where(File.project_id == source_project_id)
+    )
+    source_files = result.scalars().all()
+    id_map: dict[UUID, File] = {}
+
+    for source_file in source_files:
+        if source_file.parent_id is not None:
+            continue
+        copied_file = File(
+            project_id=target_project_id,
+            parent_id=None,
+            name=source_file.name,
+            language=source_file.language,
+            content=source_file.content,
+        )
+        db.add(copied_file)
+        await db.flush()
+        id_map[source_file.id] = copied_file
+
+    pending_files = [file for file in source_files if file.parent_id is not None]
+    while pending_files:
+        copied_any = False
+        remaining = []
+        for source_file in pending_files:
+            copied_parent = id_map.get(source_file.parent_id)
+            if not copied_parent:
+                remaining.append(source_file)
+                continue
+            copied_file = File(
+                project_id=target_project_id,
+                parent_id=copied_parent.id,
+                name=source_file.name,
+                language=source_file.language,
+                content=source_file.content,
+            )
+            db.add(copied_file)
+            await db.flush()
+            id_map[source_file.id] = copied_file
+            copied_any = True
+
+        if not copied_any:
+            # Defensive fallback for malformed trees with missing/cyclic parents.
+            for source_file in remaining:
+                copied_file = File(
+                    project_id=target_project_id,
+                    parent_id=None,
+                    name=source_file.name,
+                    language=source_file.language,
+                    content=source_file.content,
+                )
+                db.add(copied_file)
+                await db.flush()
+                id_map[source_file.id] = copied_file
+            break
+
+        pending_files = remaining
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -146,19 +216,39 @@ async def create_project(
 @router.get(
     "/",
     response_model=list[ProjectResponse],
-    summary="List all projects owned by the current user",
+    summary="List projects owned by or shared with the current user",
 )
 async def list_my_projects(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[ProjectResponse]:
-    result = await db.execute(
+    owned_result = await db.execute(
         select(Project).where(
             Project.user_id == current_user.id,
             Project.is_deleted.is_(False),
         )
     )
-    return result.scalars().all()
+    projects = [
+        _project_response(project, "owner")
+        for project in owned_result.scalars().all()
+    ]
+
+    shared_result = await db.execute(
+        select(Project, ProjectCollaborator.role)
+        .join(ProjectCollaborator, Project.id == ProjectCollaborator.project_id)
+        .where(
+            ProjectCollaborator.user_id == current_user.id,
+            ProjectCollaborator.accepted.is_(True),
+            Project.is_deleted.is_(False),
+        )
+    )
+    seen_ids = {project.id for project in projects}
+    for project, role in shared_result.all():
+        if project.id not in seen_ids:
+            projects.append(_project_response(project, role))
+            seen_ids.add(project.id)
+
+    return projects
 
 
 # ── List public projects ──────────────────────────────────────────────────────
@@ -205,6 +295,44 @@ async def view_shared_project(
 
 # ── Get single project (owner or collaborator) ────────────────────────────────
 
+@router.post(
+    "/public/{project_id}/copy",
+    response_model=ProjectResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Copy a public project into the current user's workspace",
+)
+async def copy_public_project(
+    project_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ProjectResponse:
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.is_public.is_(True),
+            Project.is_deleted.is_(False),
+        )
+    )
+    source_project = result.scalar_one_or_none()
+    if not source_project:
+        raise HTTPException(status_code=404, detail="Public project not found")
+
+    copied_project = Project(
+        name=f"{source_project.name} (Copy)",
+        description=source_project.description,
+        language=source_project.language,
+        source_code=source_project.source_code,
+        is_public=False,
+        user_id=current_user.id,
+    )
+    db.add(copied_project)
+    await db.flush()
+    await _copy_project_files(source_project.id, copied_project.id, db)
+    await db.commit()
+    await db.refresh(copied_project)
+    return _project_response(copied_project, "owner")
+
+
 @router.get(
     "/{project_id}",
     response_model=ProjectResponse,
@@ -215,7 +343,9 @@ async def get_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
-    return await _get_accessible_project(project_id, current_user, db)
+    project = await _get_accessible_project(project_id, current_user, db)
+    role = await get_project_role(project_id, db, current_user)
+    return _project_response(project, role)
 
 
 # ── Update metadata (name, description, language, is_public) ─────────────────

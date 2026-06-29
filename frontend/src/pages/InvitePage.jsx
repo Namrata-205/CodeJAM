@@ -17,7 +17,7 @@ const InvitePage = () => {
       const response = await acceptCollaborationInvite(projectId);
       setStatus('success');
       setMessage(response.message || 'Invitation accepted');
-      setTimeout(() => navigate(`/editor/${projectId}`), 700);
+      setTimeout(() => navigate('/dashboard'), 700);
     } catch (error) {
       setStatus('error');
       setMessage(error.message || 'Could not accept invitation');
@@ -50,8 +50,16 @@ const InvitePage = () => {
           className="w-full flex items-center justify-center gap-2 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-semibold disabled:opacity-50"
         >
           {status === 'loading' && <Loader2 className="w-4 h-4 animate-spin" />}
-          {status === 'success' ? 'Opening project...' : 'Accept invitation'}
+          {status === 'success' ? 'Opening dashboard...' : 'Accept invitation'}
         </button>
+        {status === 'success' && (
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="w-full mt-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold"
+          >
+            Go to dashboard
+          </button>
+        )}
       </div>
     </div>
   );

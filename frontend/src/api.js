@@ -58,6 +58,7 @@ export const projects = {
   list: () => request('/projects/'),
   listPublic: () => request('/projects/public'),
   get: (id) => request(`/projects/${id}`),
+  copyPublic: (id) => request(`/projects/public/${id}/copy`, { method: 'POST' }),
   create: (data) => request('/projects/', { method: 'POST', body: data }),
   updateMeta: (id, data) => request(`/projects/${id}`, { method: 'PATCH', body: data }),
   updateCode: (id, source_code) => request(`/projects/${id}/code`, { method: 'PUT', body: { source_code } }),

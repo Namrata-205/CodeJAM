@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import MonacoEditor from '@monaco-editor/react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Play, Save, Share2, FilePlus, FolderPlus,
@@ -18,6 +19,38 @@ const LANG_KEY = {
   Python: 'python', JavaScript: 'javascript', TypeScript: 'typescript',
   Java: 'java', Go: 'go', Rust: 'rust', 'C++': 'cpp', C: 'c',
 };
+
+const EXTENSION_LANGUAGE = {
+  py: 'python',
+  js: 'javascript',
+  jsx: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  java: 'java',
+  go: 'go',
+  rs: 'rust',
+  c: 'c',
+  h: 'c',
+  cpp: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
+  hpp: 'cpp',
+  json: 'json',
+  html: 'html',
+  css: 'css',
+  md: 'markdown',
+  yml: 'yaml',
+  yaml: 'yaml',
+  sh: 'shell',
+  env: 'shell',
+};
+
+function editorLanguageFor(file, project) {
+  if (!file || file.language === '__folder__') return 'plaintext';
+  if (file.language && !['text', 'plaintext'].includes(file.language)) return file.language;
+  const ext = file.name?.split('.').pop()?.toLowerCase();
+  return EXTENSION_LANGUAGE[ext] || LANG_KEY[project?.language] || 'plaintext';
+}
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -71,6 +104,7 @@ function FileNode({
   onDelete,
   onNewFile,
   onNewFolder,
+  canEdit,
 }) {
   const [open, setOpen] = useState(true);
   const isFolder = node.language === '__folder__';
@@ -108,6 +142,7 @@ function FileNode({
         <span className="flex-1 truncate font-mono">{node.name}</span>
 
         {/* Context actions */}
+        {canEdit && (
         <span className="hidden group-hover:flex items-center gap-1">
           {isFolder && (
             <>
@@ -135,6 +170,7 @@ function FileNode({
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </span>
+        )}
       </div>
 
       {isFolder && open && node.children.map((child) => (
@@ -149,6 +185,7 @@ function FileNode({
           onDelete={onDelete}
           onNewFile={onNewFile}
           onNewFolder={onNewFolder}
+          canEdit={canEdit}
         />
       ))}
     </div>
@@ -200,7 +237,7 @@ function NewItemDialog({ type, onConfirm, onCancel }) {
 const Editor = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { getProject, fetchProjects, fetchFiles, createFile, updateFileContent, deleteFile } = useProjects();
+  const { getProject, fetchFiles, createFile, updateFileContent, deleteFile } = useProjects();
 
   const [project, setProject] = useState(null);
   const [fileTree, setFileTree] = useState([]);
@@ -224,6 +261,9 @@ const Editor = () => {
 
   const selectedFolder = flatFiles.find((f) => f.id === selectedFolderId && f.language === '__folder__');
   const createParentId = selectedFolder ? selectedFolder.id : null;
+  const accessRole = project?.access_role || 'owner';
+  const isOwner = accessRole === 'owner';
+  const canEdit = accessRole === 'owner' || accessRole === 'editor';
 
   // ── Load project + files ──────────────────────────────────────────────────
 
@@ -243,18 +283,17 @@ const Editor = () => {
   }, [fetchFiles, activeFile]);
 
   useEffect(() => {
-    // Try from context cache first; if not there, fetch projects
-    let proj = getProject(projectId);
+    const proj = getProject(projectId);
     if (proj) {
       setProject(proj);
       loadFiles(proj);
     } else {
-      fetchProjects().then(() => {
-        proj = getProject(projectId);
-        if (!proj) { navigate('/dashboard'); return; }
-        setProject(proj);
-        loadFiles(proj);
-      });
+      projectsApi.get(projectId)
+        .then((freshProject) => {
+          setProject(freshProject);
+          loadFiles(freshProject);
+        })
+        .catch(() => navigate('/dashboard'));
     }
   }, [projectId]); // eslint-disable-line
 
@@ -334,6 +373,10 @@ const Editor = () => {
 
   const saveActiveFile = async (showSuccess = true) => {
     if (!activeFile || activeFile.language === '__folder__') return;
+    if (!canEdit) {
+      showToast('You have view-only access to this project', 'info');
+      return;
+    }
     setSaving(true);
     try {
       await updateFileContent(projectId, activeFile.id, code);
@@ -353,11 +396,13 @@ const Editor = () => {
   const handleSave = () => saveActiveFile(true);
 
   const publishToGitHub = async (data) => {
+    if (!isOwner) throw new Error('Only the project owner can publish this project');
     await saveActiveFile(false);
     return projectsApi.pushToGitHub(projectId, data);
   };
 
   const deployToVercel = async (data) => {
+    if (!isOwner) throw new Error('Only the project owner can deploy this project');
     await saveActiveFile(false);
     return projectsApi.deployToVercel(projectId, data);
   };
@@ -374,6 +419,11 @@ const Editor = () => {
   // ── Create file / folder ──────────────────────────────────────────────────
 
   const handleCreate = async (name) => {
+    if (!canEdit) {
+      showToast('You have view-only access to this project', 'info');
+      setDialog(null);
+      return;
+    }
     const { type, parentId } = dialog;
     setDialog(null);
     try {
@@ -404,6 +454,10 @@ const Editor = () => {
   // ── Delete file/folder ────────────────────────────────────────────────────
 
   const handleDelete = async (node) => {
+    if (!canEdit) {
+      showToast('You have view-only access to this project', 'info');
+      return;
+    }
     if (!window.confirm(`Delete "${node.name}"?`)) return;
     try {
       await deleteFile(projectId, node.id);
@@ -471,15 +525,21 @@ const Editor = () => {
       <div className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-lg font-bold text-white font-outfit">{project.name}</h1>
-          <p className="text-xs text-gray-400 font-mono">
-            {project.language === 'react-fastapi' ? 'React + FastAPI workspace' : project.language}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-gray-400 font-mono">
+              {project.language === 'react-fastapi' ? 'React + FastAPI workspace' : project.language}
+            </p>
+            <span className="px-2 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 text-[10px] font-semibold uppercase">
+              {accessRole === 'owner' ? 'Owner' : accessRole}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !canEdit}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
+            title={canEdit ? 'Save file' : 'Viewers cannot save changes'}
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Save
@@ -515,20 +575,24 @@ const Editor = () => {
               <ExternalLink className="w-4 h-4" />
             </a>
           )}
-          <button
-            onClick={() => setShowPublish(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors"
-          >
-            <Rocket className="w-4 h-4" />
-            Publish
-          </button>
-          <button
-            onClick={() => setShowShare(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm transition-colors"
-          >
-            <Share2 className="w-4 h-4" />
-            Share
-          </button>
+          {isOwner && (
+            <>
+              <button
+                onClick={() => setShowPublish(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors"
+              >
+                <Rocket className="w-4 h-4" />
+                Publish
+              </button>
+              <button
+                onClick={() => setShowShare(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm transition-colors"
+              >
+                <Share2 className="w-4 h-4" />
+                Share
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -549,15 +613,17 @@ const Editor = () => {
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setDialog({ type: 'file', parentId: createParentId })}
-                className="p-1 hover:bg-slate-800 rounded text-cyan-400"
-                title="New file"
+                disabled={!canEdit}
+                className="p-1 hover:bg-slate-800 rounded text-cyan-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                title={canEdit ? 'New file' : 'Viewers cannot create files'}
               >
                 <FilePlus className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setDialog({ type: 'folder', parentId: createParentId })}
-                className="p-1 hover:bg-slate-800 rounded text-amber-400"
-                title="New folder"
+                disabled={!canEdit}
+                className="p-1 hover:bg-slate-800 rounded text-amber-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                title={canEdit ? 'New folder' : 'Viewers cannot create folders'}
               >
                 <FolderPlus className="w-4 h-4" />
               </button>
@@ -575,6 +641,7 @@ const Editor = () => {
                 onDelete={handleDelete}
                 onNewFile={(parentId) => setDialog({ type: 'file', parentId })}
                 onNewFolder={(parentId) => setDialog({ type: 'folder', parentId })}
+                canEdit={canEdit}
               />
             ))}
             {fileTree.length === 0 && (
@@ -602,14 +669,25 @@ const Editor = () => {
             </div>
           )}
 
-          <textarea
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="flex-1 w-full bg-slate-950 text-white font-mono text-sm p-4 resize-none focus:outline-none"
-            spellCheck={false}
-            placeholder={activeFile ? 'Start coding...' : 'Select or create a file'}
-            disabled={!activeFile || activeFile.language === '__folder__'}
-          />
+          <div className="flex-1 min-h-0 bg-slate-950">
+            <MonacoEditor
+              value={code}
+              onChange={(value) => canEdit && setCode(value ?? '')}
+              language={editorLanguageFor(activeFile, project)}
+              theme="vs-dark"
+              options={{
+                readOnly: !canEdit || !activeFile || activeFile.language === '__folder__',
+                minimap: { enabled: false },
+                fontSize: 14,
+                fontFamily: 'Fira Code, Consolas, Monaco, monospace',
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                tabSize: 2,
+                padding: { top: 16, bottom: 16 },
+              }}
+            />
+          </div>
 
           {/* Output panel */}
           <div

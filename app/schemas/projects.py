@@ -57,6 +57,7 @@ class ProjectResponse(ProjectBase):
     id: UUID
     user_id: UUID
     share_id: Optional[UUID] = None
+    access_role: Literal["owner", "editor", "viewer"] = "owner"
     is_deleted: bool
     created_at: datetime
     updated_at: Optional[datetime] = None

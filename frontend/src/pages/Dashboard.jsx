@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FolderOpen, Globe, Users, Plus, Search, Lock,
-  Trash2, Loader2, Code2
+  FolderOpen, Globe, Plus, Search, Lock,
+  Trash2, Loader2, Copy
 } from 'lucide-react';
 import { useProjects } from '../contexts/ProjectContext';
 import CreateProjectModal from '../components/CreateProjectModal';
@@ -19,13 +19,20 @@ const LANG_ICONS = {
   go: '🐹', rust: '🦀', cpp: '⚙️', c: '🔧',
 };
 
+const ROLE_STYLES = {
+  owner: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300',
+  editor: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  viewer: 'border-purple-500/30 bg-purple-500/10 text-purple-300',
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { projects, loading, error, fetchProjects, fetchPublicProjects, deleteProject } = useProjects();
+  const { projects, loading, error, fetchProjects, fetchPublicProjects, deleteProject, copyPublicProject } = useProjects();
   const [activeTab, setActiveTab] = useState('my-projects');
   const [showCreate, setShowCreate] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [deleting, setDeleting] = useState(null);
+  const [copying, setCopying] = useState(null);
 
   useEffect(() => {
     if (activeTab === 'my-projects') fetchProjects();
@@ -45,17 +52,29 @@ const Dashboard = () => {
     setDeleting(null);
   };
 
+  const handleCopyPublicProject = async (e, id) => {
+    e.stopPropagation();
+    setCopying(id);
+    try {
+      const copied = await copyPublicProject(id);
+      navigate(`/editor/${copied.id}`);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setCopying(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950">
       <Navbar />
 
       <div className="flex">
-        {/* Sidebar */}
         <aside className="w-60 bg-slate-900 border-r border-slate-800 min-h-[calc(100vh-4rem)] p-4">
           <nav className="space-y-1">
             {[
               { key: 'my-projects', icon: <FolderOpen className="w-4 h-4" />, label: 'My Projects' },
-              { key: 'public',      icon: <Globe      className="w-4 h-4" />, label: 'Public'      },
+              { key: 'public', icon: <Globe className="w-4 h-4" />, label: 'Public' },
             ].map(({ key, icon, label }) => (
               <button
                 key={key}
@@ -72,7 +91,6 @@ const Dashboard = () => {
           </nav>
         </aside>
 
-        {/* Main */}
         <main className="flex-1 p-8">
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-8">
@@ -121,44 +139,83 @@ const Dashboard = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {filtered.map((project) => (
-                  <div
-                    key={project.id}
-                    onClick={() => navigate(`/editor/${project.id}`)}
-                    className="glass rounded-xl p-5 card-hover cursor-pointer group relative"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{LANG_ICONS[project.language] || '📄'}</span>
-                        <div>
-                          <h3 className="font-semibold text-white group-hover:text-cyan-400 transition-colors font-outfit">
-                            {project.name}
-                          </h3>
-                          <p className={`text-xs font-mono mt-0.5 ${LANG_COLORS[project.language] || 'text-gray-400'}`}>
-                            {project.language}
-                          </p>
+                {filtered.map((project) => {
+                  const role = project.access_role || 'owner';
+                  const isOwner = activeTab !== 'my-projects' || role === 'owner';
+
+                  return (
+                    <div
+                      key={project.id}
+                      onClick={() => {
+                        if (activeTab === 'my-projects') navigate(`/editor/${project.id}`);
+                      }}
+                      className="glass rounded-xl p-5 card-hover cursor-pointer group relative"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-2xl">{LANG_ICONS[project.language] || '📄'}</span>
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-white group-hover:text-cyan-400 transition-colors font-outfit truncate">
+                              {project.name}
+                            </h3>
+                            <p className={`text-xs font-mono mt-0.5 ${LANG_COLORS[project.language] || 'text-gray-400'}`}>
+                              {project.language}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {activeTab === 'my-projects' && (
+                            <span className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase ${ROLE_STYLES[role] || ROLE_STYLES.viewer}`}>
+                              {role === 'owner' ? 'Owned' : role}
+                            </span>
+                          )}
+                          {project.is_public
+                            ? <Globe className="w-4 h-4 text-purple-400 shrink-0" />
+                            : <Lock className="w-4 h-4 text-green-400 shrink-0" />
+                          }
                         </div>
                       </div>
-                      {project.is_public
-                        ? <Globe className="w-4 h-4 text-purple-400 shrink-0" />
-                        : <Lock  className="w-4 h-4 text-green-400  shrink-0" />
-                      }
-                    </div>
 
-                    {activeTab === 'my-projects' && (
-                      <button
-                        onClick={(e) => handleDelete(e, project.id)}
-                        disabled={deleting === project.id}
-                        className="absolute bottom-4 right-4 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded-lg text-red-400 transition-all"
-                      >
-                        {deleting === project.id
-                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          : <Trash2  className="w-3.5 h-3.5" />
-                        }
-                      </button>
-                    )}
-                  </div>
-                ))}
+                      {activeTab === 'my-projects' && !isOwner && (
+                        <p className="text-xs text-gray-500">
+                          Shared with you as {role === 'editor' ? 'an editor' : 'a viewer'}.
+                        </p>
+                      )}
+
+                      {activeTab === 'public' && (
+                        <div className="space-y-3">
+                          <p className="text-xs text-gray-500">
+                            Make a private copy to edit this project without changing the owner's version.
+                          </p>
+                          <button
+                            onClick={(e) => handleCopyPublicProject(e, project.id)}
+                            disabled={copying === project.id}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                          >
+                            {copying === project.id
+                              ? <Loader2 className="w-4 h-4 animate-spin" />
+                              : <Copy className="w-4 h-4" />
+                            }
+                            {copying === project.id ? 'Adding...' : 'Add to my projects'}
+                          </button>
+                        </div>
+                      )}
+
+                      {activeTab === 'my-projects' && isOwner && (
+                        <button
+                          onClick={(e) => handleDelete(e, project.id)}
+                          disabled={deleting === project.id}
+                          className="absolute bottom-4 right-4 p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded-lg text-red-400 transition-all"
+                        >
+                          {deleting === project.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Trash2 className="w-3.5 h-3.5" />
+                          }
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

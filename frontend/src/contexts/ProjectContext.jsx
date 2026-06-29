@@ -52,6 +52,12 @@ export const ProjectProvider = ({ children }) => {
     return proj;
   };
 
+  const copyPublicProject = async (id) => {
+    const proj = await projectsApi.copyPublic(id);
+    setProjects((prev) => [proj, ...prev.filter((p) => p.id !== proj.id)]);
+    return proj;
+  };
+
   const updateProject = async (id, updates) => {
     const updated = await projectsApi.updateMeta(id, updates);
     setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
@@ -106,7 +112,9 @@ export const ProjectProvider = ({ children }) => {
   };
 
   const acceptCollaborationInvite = async (projectId) => {
-    return collabApi.accept(projectId);
+    const response = await collabApi.accept(projectId);
+    await fetchProjects();
+    return response;
   };
 
   // ── Share links ──────────────────────────────────────────────────────────────
@@ -123,7 +131,7 @@ export const ProjectProvider = ({ children }) => {
     <ProjectContext.Provider value={{
       projects, loading, error,
       fetchProjects, fetchPublicProjects,
-      createProject, updateProject, deleteProject, getProject,
+      createProject, copyPublicProject, updateProject, deleteProject, getProject,
       fetchFiles, createFile, updateFileContent, renameFile, deleteFile,
       listCollaborators, inviteCollaborator, removeCollaborator, changeCollaboratorRole,
       acceptCollaborationInvite,
