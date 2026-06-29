@@ -122,7 +122,13 @@ export const execute = {
    * Calls onStatus(status) on each poll tick.
    */
   run: async (language, source_code, onStatus) => {
-    const { job_id } = await execute.submit(language, source_code);
+    const submitted = await execute.submit(language, source_code);
+    if (submitted.status === 'finished' || submitted.status === 'failed') {
+      onStatus?.(submitted.status);
+      return submitted;
+    }
+
+    const { job_id } = submitted;
     onStatus?.('queued');
 
     const deadline = Date.now() + POLL_TIMEOUT_MS;

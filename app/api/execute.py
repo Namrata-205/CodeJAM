@@ -5,6 +5,8 @@ Code execution endpoints.
 POST /execute/          — submit code, get back a job_id
 GET  /execute/{job_id}  — poll for the result
 """
+from uuid import uuid4
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.dependencies import get_current_user
@@ -20,6 +22,24 @@ except ImportError:  # pragma: no cover
     Job = None       # type: ignore
 
 router = APIRouter(prefix="/execute", tags=["Code Execution"])
+
+DIRECT_RESULTS: dict[str, dict] = {}
+
+
+def _format_result(job_id: str, result: dict) -> JobStatusResponse:
+    output_lines = []
+    if result.get("stdout"):
+        output_lines.append(result["stdout"])
+    if result.get("stderr"):
+        output_lines.append(f"[stderr]\n{result['stderr']}")
+    if result.get("timed_out"):
+        output_lines.append("[Execution timed out]")
+
+    return JobStatusResponse(
+        job_id=job_id,
+        status="finished",
+        output="\n".join(output_lines) if output_lines else "",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +71,9 @@ def execute_code(
             job_timeout=60,     # RQ-level guard; worker also enforces EXECUTION_TIMEOUT
         )
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Execution queue unavailable: {exc}")
+        job_id = f"direct-{uuid4()}"
+        DIRECT_RESULTS[job_id] = run_code(data.language, data.source_code)
+        return _format_result(job_id, DIRECT_RESULTS[job_id])
 
     return JobStatusResponse(job_id=job.id, status="queued")
 
@@ -69,6 +91,9 @@ def get_execution_result(
     job_id: str,
     current_user: User = Depends(get_current_user),
 ) -> JobStatusResponse:
+    if job_id in DIRECT_RESULTS:
+        return _format_result(job_id, DIRECT_RESULTS[job_id])
+
     if Job is None:
         raise HTTPException(status_code=500, detail="RQ not installed")
 
@@ -79,19 +104,7 @@ def get_execution_result(
 
     if job.is_finished:
         result: dict = job.result or {}
-        output_lines = []
-        if result.get("stdout"):
-            output_lines.append(result["stdout"])
-        if result.get("stderr"):
-            output_lines.append(f"[stderr]\n{result['stderr']}")
-        if result.get("timed_out"):
-            output_lines.append("[Execution timed out]")
-
-        return JobStatusResponse(
-            job_id=job_id,
-            status="finished",
-            output="\n".join(output_lines) if output_lines else "",
-        )
+        return _format_result(job_id, result)
 
     if job.is_failed:
         return JobStatusResponse(
