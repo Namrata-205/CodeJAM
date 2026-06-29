@@ -329,7 +329,13 @@ const Editor = () => {
     }
   };
 
-  const handlePreview = async () => {
+  const previewUrlFor = (runtime, mode = 'full') => {
+    if (!runtime?.preview_url) return null;
+    if (mode === 'backend') return new URL('docs', runtime.preview_url).toString();
+    return runtime.preview_url;
+  };
+
+  const handlePreview = async (mode = 'full') => {
     if (project.language !== 'react-fastapi') return;
     const previewWindow = window.open('', '_blank');
     if (previewWindow) {
@@ -339,17 +345,18 @@ const Editor = () => {
     setStartingPreview(true);
     try {
       await saveActiveFile(false);
-      const runtime = await runtimesApi.start(projectId);
+      const runtime = preview?.status === 'running' ? preview : await runtimesApi.start(projectId);
       if (runtime.status !== 'running' || !runtime.preview_url) {
         throw new Error(runtime.error || 'Preview could not start');
       }
       setPreview(runtime);
+      const targetUrl = previewUrlFor(runtime, mode);
       if (previewWindow) {
-        previewWindow.location.href = runtime.preview_url;
+        previewWindow.location.href = targetUrl;
       } else {
-        window.open(runtime.preview_url, '_blank', 'noopener,noreferrer');
+        window.open(targetUrl, '_blank', 'noopener,noreferrer');
       }
-      showToast('Preview opened in a new tab');
+      showToast(mode === 'backend' ? 'FastAPI docs opened in a new tab' : 'Preview opened in a new tab');
     } catch (e) {
       previewWindow?.close();
       showToast(e.message, 'error');
@@ -555,14 +562,42 @@ const Editor = () => {
             </button>
           )}
           {project.language === 'react-fastapi' && (
-            <button
-              onClick={preview ? stopPreview : handlePreview}
-              disabled={startingPreview}
-              className={preview ? 'flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50' : 'flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50'}
-            >
-              {startingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : preview ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              {startingPreview ? 'Starting...' : preview ? 'Stop preview' : 'Preview project'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePreview('full')}
+                disabled={startingPreview}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                title="Run the complete React + FastAPI workspace"
+              >
+                {startingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                {startingPreview ? 'Starting...' : 'Preview full app'}
+              </button>
+              <button
+                onClick={() => handlePreview('frontend')}
+                disabled={startingPreview}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
+                title="Open the React frontend"
+              >
+                Frontend
+              </button>
+              <button
+                onClick={() => handlePreview('backend')}
+                disabled={startingPreview}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
+                title="Open FastAPI Swagger docs for backend testing"
+              >
+                Backend docs
+              </button>
+              {preview && (
+                <button
+                  onClick={stopPreview}
+                  className="flex items-center gap-2 px-3 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-semibold transition-colors"
+                >
+                  <Square className="w-4 h-4" />
+                  Stop
+                </button>
+              )}
+            </div>
           )}
           {preview && (
             <a
