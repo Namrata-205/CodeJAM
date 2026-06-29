@@ -86,7 +86,7 @@ function Toast({ message, type = 'success', onDone }) {
   };
 
   return (
-    <div className={`fixed top-20 right-6 px-4 py-3 rounded-lg border z-50 text-sm font-medium animate-fade-in ${colors[type]}`}>
+    <div className={`fixed bottom-6 right-6 max-w-md px-4 py-3 rounded-lg border z-50 text-sm font-medium animate-fade-in shadow-2xl break-words ${colors[type]}`}>
       {message}
     </div>
   );
